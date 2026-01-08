@@ -34,3 +34,12 @@ posts.json
 # Temporary files
 *.tmp
 *.temp
+
+# Ignore trea folder
+.trea
+
+# Ignore post folder except for specific subfolders
+/post/*
+!/post/life/
+!/post/study/
+!/post/tech/
