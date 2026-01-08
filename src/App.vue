@@ -3,7 +3,7 @@
     id="app"
     @click="focusInput"
     :style="{
-      backgroundImage: `url(${background.image})`,
+      backgroundImage: `url(${background.image.value})`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
@@ -12,11 +12,12 @@
   >
     <div
       class="terminal"
-      :class="`font-size-${fontSize}`"
       :style="{
-        background: `rgba(0, 0, 0, ${background.opacity})`,
+        background: `rgba(0, 0, 0, ${background.opacity.value})`,
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
+        fontFamily: `${font.family.value}, '0xProto Nerd Font', 'Roboto Mono Nerd Font', 'Segoe UI Symbol', 'Segoe UI Emoji', monospace`,
+        fontSize: `${fontSize}px`,
       }"
     >
       <div class="terminal-content">
@@ -51,16 +52,15 @@
  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#################@@@@@@@@#########################</pre
           >
           <div class="system-info">
-            <div class="info-header">Welcome to My Terminal Blog</div>
-            <div class="info-item">󰍹 OS {{ browserInfo.getOsType() }}</div>
+            <div class="info-header">{{ welcomeConfig.title }}</div>
             <div class="info-item">
-              🌐 Browser {{ browserInfo.getBrowserType() }}
+              󰍹&nbsp; OS {{ browserInfo.getOsType() }}
             </div>
             <div class="info-item">
-              📝 Type 'ls' to see categories, 'cat file.md' to read articles,
-              'tree' to see directory structure
+              🌐&nbsp;Browser {{ browserInfo.getBrowserType() }}
             </div>
-            <div class="info-item">💡 Type 'help' for available commands</div>
+            <div class="info-item">{{ welcomeConfig.welcomeMsg }}</div>
+            <div class="info-item">{{ welcomeConfig.helpMsg }}</div>
           </div>
         </div>
         <!-- 渲染每一次对话 -->
@@ -233,7 +233,7 @@ import commands from "./commands"; // 优雅的默认导入
 // 读取配置文件
 let config = {
   app: { user: "Alan" },
-  ui: { fontSize: "16" },
+  ui: { fontSize: "18" },
   background: { image: "/background.jpg", opacity: "0.9" },
   theme: {
     current: "default",
@@ -251,8 +251,9 @@ const loadConfig = async () => {
       // 更新状态值
       user.value = config.app.user;
       fontSize.value = config.ui.fontSize;
+      font.family.value = config.ui.fontFamily || "Cascadia Code"; // 更新字体设置
       background.image.value = config.background.image;
-      background.opacity.value = config.background.opacity;
+      background.opacity.value = parseFloat(config.background.opacity); // 转换为数字类型
       theme.current.value = config.theme.current;
       theme.available.value = config.theme.available;
 
@@ -267,6 +268,16 @@ const loadConfig = async () => {
 
       // 更新主题配色
       theme.colors.value = config.theme[config.theme.current] || {};
+
+      // 更新欢迎语配置
+      if (config.welcome) {
+        welcomeConfig.value = {
+          title: config.welcome.title || welcomeConfig.value.title,
+          welcomeMsg:
+            config.welcome.welcomeMsg || welcomeConfig.value.welcomeMsg,
+          helpMsg: config.welcome.helpMsg || welcomeConfig.value.helpMsg,
+        };
+      }
     }
   } catch (error) {
     console.warn(
@@ -275,8 +286,11 @@ const loadConfig = async () => {
   }
 };
 
-// 调用加载配置函数
-loadConfig();
+// 初始化应用配置
+const initApp = async () => {
+  await loadConfig();
+  loadSettings();
+};
 
 // 状态管理 - 按功能分组
 const conversations = ref([]); // 对话数组，每个元素包含命令和输出
@@ -285,6 +299,14 @@ const inputRef = ref(null);
 const currentDir = ref("/");
 const showWelcome = ref(true);
 const isMobile = ref(false); // 检测是否为移动设备
+
+// 欢迎语配置
+const welcomeConfig = ref({
+  title: "Welcome to My Terminal Blog",
+  welcomeMsg:
+    "📝&nbsp;Type 'ls' to see categories, 'cat file.md' to read articles, 'tree' to see directory structure",
+  helpMsg: "💡&nbsp;Type 'help' for available commands",
+});
 
 // Tab补全状态管理
 const tabCompleteState = ref({
@@ -336,7 +358,7 @@ const getCompletionItems = (cmd, currentDirValue, currentArg) => {
 // 用户和系统信息
 const user = ref(config.app.user);
 const currentTime = ref("");
-const batteryStatus = ref("95%");
+const currentDayOfWeek = ref("");
 const browserInfo = {
   getBrowserType: () => {
     const userAgent = navigator.userAgent;
@@ -364,13 +386,15 @@ const memoryInfo = {
   percent: ref("0"),
 };
 const latency = ref("0.000s");
-const startTime = ref(new Date());
 
 // UI 相关状态
 const fontSize = ref(config.ui.fontSize); // 字体大小，从配置文件读取
+const font = {
+  family: ref(config.ui.fontFamily || "Cascadia Code"), // 字体，从配置文件读取，默认为Cascadia Code
+};
 const background = {
   image: ref(config.background.image), // 背景图片路径，从配置文件读取
-  opacity: ref(config.background.opacity), // 背景透明度，从配置文件读取
+  opacity: ref(parseFloat(config.background.opacity)), // 背景透明度，初始化为数字类型
 };
 
 // 信息栏配色状态
@@ -399,12 +423,78 @@ const history = {
   temp: ref(""), // 临时存储当前输入，用于历史命令切换
 };
 
-// 更新延迟时间
-const updateLatency = () => {
-  const now = new Date();
-  const diff = now - startTime.value;
-  const seconds = (diff / 1000).toFixed(3);
-  latency.value = `${seconds}s`;
+// 加载历史命令从localStorage
+const loadHistory = () => {
+  const savedHistory = localStorage.getItem("terminalHistory");
+  if (savedHistory) {
+    try {
+      const parsedHistory = JSON.parse(savedHistory);
+      if (Array.isArray(parsedHistory)) {
+        history.commands.value = parsedHistory;
+      }
+    } catch (error) {
+      console.error("Failed to load history from localStorage:", error);
+    }
+  }
+};
+
+// 保存样式设置到localStorage
+const saveSettings = () => {
+  const settings = {
+    fontSize: fontSize.value,
+    font: font.family.value,
+    background: {
+      image: background.image.value,
+      opacity: background.opacity.value,
+    },
+    theme: theme.current.value,
+  };
+  localStorage.setItem("terminalSettings", JSON.stringify(settings));
+};
+
+// 从localStorage加载样式设置
+const loadSettings = () => {
+  const savedSettings = localStorage.getItem("terminalSettings");
+  if (savedSettings) {
+    try {
+      const parsedSettings = JSON.parse(savedSettings);
+      // 更新样式设置
+      if (parsedSettings.fontSize) {
+        fontSize.value = parsedSettings.fontSize;
+      }
+      if (parsedSettings.font) {
+        font.family.value = parsedSettings.font;
+      }
+      if (parsedSettings.background) {
+        if (parsedSettings.background.image) {
+          background.image.value = parsedSettings.background.image;
+        }
+        if (parsedSettings.background.opacity) {
+          background.opacity.value = parsedSettings.background.opacity;
+        }
+      }
+      if (parsedSettings.theme) {
+        theme.current.value = parsedSettings.theme;
+        // 更新主题配色
+        theme.colors.value = config.theme[parsedSettings.theme] || {};
+      }
+    } catch (error) {
+      console.error("Failed to load settings from localStorage:", error);
+    }
+  }
+};
+
+// 保存历史命令到localStorage
+const saveHistory = () => {
+  // 限制历史命令数量为20条
+  const limitedHistory = history.commands.value.slice(-20);
+  localStorage.setItem("terminalHistory", JSON.stringify(limitedHistory));
+};
+
+// 清除历史命令
+const clearHistory = () => {
+  history.commands.value = [];
+  localStorage.removeItem("terminalHistory");
 };
 
 // 更新内存信息
@@ -435,7 +525,19 @@ const updateTime = () => {
     hour12: true,
     hourCycle: "h12",
   });
-  updateLatency();
+
+  // 更新星期几缓存
+  const days = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  currentDayOfWeek.value = days[now.getDay()];
+
   updateMemoryInfo();
 };
 
@@ -512,6 +614,7 @@ const executeCommand = async () => {
   // 添加到历史命令数组（去重，避免连续重复命令）
   if (history.commands.value[history.commands.value.length - 1] !== cmd) {
     history.commands.value.push(cmd);
+    saveHistory(); // 保存历史命令到localStorage
   }
   // 重置历史索引
   history.index.value = -1;
@@ -562,11 +665,13 @@ const executeCommand = async () => {
         getArticleInfo,
         getDirIcon,
         fontSize,
+        font,
         background,
         theme,
         infoBarColors,
         conversations,
         showWelcome,
+        clearHistory, // 添加清除历史命令的函数
       };
 
       // 获取命令处理函数
@@ -583,6 +688,9 @@ const executeCommand = async () => {
         await scrollToBottom();
       }
     }
+
+    // 保存样式设置到localStorage，无论命令是否存在
+    saveSettings();
   } finally {
     // 命令执行完毕后清空命令输入框
     command.value = "";
@@ -604,17 +712,7 @@ const getDirIcon = () => {
 
 // 获取星期几
 const getDayOfWeek = () => {
-  const days = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-  ];
-  const now = new Date();
-  return days[now.getDay()];
+  return currentDayOfWeek.value;
 };
 
 // 移除重复的getBrowserType和getOsType函数，直接使用browserInfo对象中的方法
@@ -672,6 +770,71 @@ const handleHistory = (direction) => {
   });
 };
 
+// 通用补全函数
+const handleGenericCompletion = (currentCmd, currentArg, allItems) => {
+  // 如果没有匹配项，直接返回
+  if (allItems.length === 0) {
+    return;
+  }
+
+  // 情况1：有输入前缀，按前缀补全
+  if (currentArg) {
+    // 过滤匹配前缀的项
+    const matchingItems = allItems.filter((item) =>
+      item.startsWith(currentArg)
+    );
+
+    if (matchingItems.length > 0) {
+      // 检查状态是否匹配当前命令和参数
+      if (
+        tabCompleteState.value.currentCmd !== currentCmd ||
+        !tabCompleteState.value.currentArg.startsWith(currentArg) ||
+        tabCompleteState.value.items.length === 0
+      ) {
+        // 重置状态
+        tabCompleteState.value = {
+          currentCmd: currentCmd,
+          currentArg: currentArg,
+          items: matchingItems,
+          index: -1,
+        };
+      }
+
+      // 计算下一个索引
+      tabCompleteState.value.index =
+        (tabCompleteState.value.index + 1) % matchingItems.length;
+
+      // 应用补全
+      command.value = `${currentCmd} ${
+        matchingItems[tabCompleteState.value.index]
+      }`;
+    }
+  }
+  // 情况2：没有输入前缀，按顺序循环补全
+  else {
+    // 检查状态是否匹配当前命令
+    if (
+      tabCompleteState.value.currentCmd !== currentCmd ||
+      tabCompleteState.value.items.length === 0
+    ) {
+      // 重置状态
+      tabCompleteState.value = {
+        currentCmd: currentCmd,
+        currentArg: currentArg,
+        items: allItems,
+        index: -1,
+      };
+    }
+
+    // 计算下一个索引
+    tabCompleteState.value.index =
+      (tabCompleteState.value.index + 1) % allItems.length;
+
+    // 应用补全
+    command.value = `${currentCmd} ${allItems[tabCompleteState.value.index]}`;
+  }
+};
+
 // Tab键补全功能 - 实现按顺序循环补全
 const handleTabComplete = () => {
   const cmd = command.value;
@@ -680,6 +843,22 @@ const handleTabComplete = () => {
   // 处理命令补全（只补全命令，不补全文件夹）
   if (parts.length === 1) {
     const cmdPrefix = parts[0];
+    const basicCommands = ["ls", "cd", "cat"];
+
+    // 当输入框为空或只有ls、cd、cat之一时，循环切换这三个基础命令
+    if (cmdPrefix === "" || basicCommands.includes(cmdPrefix)) {
+      // 查找当前命令在列表中的位置
+      let currentIndex = basicCommands.indexOf(command.value);
+
+      // 如果当前命令不在列表中（比如输入框为空），从第一个开始；否则循环到下一个
+      let nextIndex =
+        currentIndex === -1 ? 0 : (currentIndex + 1) % basicCommands.length;
+
+      // 应用补全
+      command.value = basicCommands[nextIndex];
+      return;
+    }
+
     // 从命令对象中获取所有命令名称
     const commandNames = Object.keys(commands).sort();
 
@@ -717,25 +896,9 @@ const handleTabComplete = () => {
     // 获取当前目录下的所有可能补全项
     const allItems = getCompletionItems(currentCmd, currentDir.value, "");
 
-    // 如果没有匹配项，直接返回
-    if (allItems.length === 0) {
-      return;
-    }
-
     // 情况1：没有输入参数，直接按顺序循环补全
     if (!currentArg) {
-      // 重置补全状态，开始新的顺序循环
-      tabCompleteState.value = {
-        currentCmd: currentCmd,
-        currentArg: "",
-        items: allItems,
-        index: -1,
-      };
-
-      // 计算下一个索引并应用补全
-      tabCompleteState.value.index =
-        (tabCompleteState.value.index + 1) % allItems.length;
-      command.value = `${currentCmd} ${allItems[tabCompleteState.value.index]}`;
+      handleGenericCompletion(currentCmd, currentArg, allItems);
       return;
     }
 
@@ -748,6 +911,7 @@ const handleTabComplete = () => {
     if (isSequentialMode) {
       // 继续顺序循环补全
       // 确保补全列表是最新的
+      const allItems = getCompletionItems(currentCmd, currentDir.value, "");
       if (
         tabCompleteState.value.items.length !== allItems.length ||
         !tabCompleteState.value.items.every(
@@ -774,97 +938,45 @@ const handleTabComplete = () => {
         tabCompleteState.value.items[tabCompleteState.value.index]
       }`;
     } else {
-      // 前缀匹配模式
-      // 过滤匹配前缀的项
-      const matchingItems = allItems.filter((item) =>
-        item.startsWith(currentArg)
-      );
-
-      if (matchingItems.length > 0) {
-        // 重置补全状态，开始新的前缀匹配循环
-        tabCompleteState.value = {
-          currentCmd: currentCmd,
-          currentArg: currentArg,
-          items: matchingItems,
-          index: -1,
-        };
-
-        // 计算下一个索引并应用补全
-        tabCompleteState.value.index =
-          (tabCompleteState.value.index + 1) % matchingItems.length;
-        command.value = `${currentCmd} ${
-          matchingItems[tabCompleteState.value.index]
-        }`;
-      }
+      // 前缀匹配模式，使用通用补全函数
+      const allItems = getCompletionItems(currentCmd, currentDir.value, "");
+      handleGenericCompletion(currentCmd, currentArg, allItems);
     }
   } else if (parts[0] === "theme" && parts.length <= 2) {
     // 处理theme命令的参数补全
     // 获取所有可用主题作为候选项
     const allThemes = theme.available.value;
-
-    // 如果没有匹配项，直接返回
-    if (allThemes.length === 0) {
-      return;
-    }
-
-    // 获取当前命令和参数
     const currentCmd = parts[0];
     const currentArg = parts.length === 2 ? parts[1] : "";
 
-    // 情况1：有输入前缀，按前缀补全
-    if (currentArg) {
-      // 过滤匹配前缀的主题
-      const matchingThemes = allThemes.filter((theme) =>
-        theme.startsWith(currentArg)
-      );
+    // 使用通用补全函数
+    handleGenericCompletion(currentCmd, currentArg, allThemes);
+  } else if (parts[0] === "background" && parts.length <= 2) {
+    // 处理background命令的参数补全
+    const currentCmd = parts[0];
+    const currentArg = parts.length === 2 ? parts[1] : "";
 
-      if (matchingThemes.length > 0) {
-        // 检查状态是否匹配当前命令和参数
-        if (
-          tabCompleteState.value.currentCmd !== currentCmd ||
-          !tabCompleteState.value.currentArg.startsWith(currentArg) ||
-          tabCompleteState.value.items.length === 0
-        ) {
-          // 重置状态
-          tabCompleteState.value.currentCmd = currentCmd;
-          tabCompleteState.value.currentArg = currentArg;
-          tabCompleteState.value.items = matchingThemes;
-          tabCompleteState.value.index = -1;
-        }
+    // background命令的子命令列表
+    const backgroundSubcommands = ["opacity", "image"];
 
-        // 计算下一个索引
-        tabCompleteState.value.index =
-          (tabCompleteState.value.index + 1) % matchingThemes.length;
+    // 使用通用补全函数进行子命令补全
+    handleGenericCompletion(currentCmd, currentArg, backgroundSubcommands);
+  } else if (parts[0] === "font" && parts.length <= 2) {
+    // 处理font命令的参数补全
+    const currentCmd = parts[0];
+    const currentArg = parts.length === 2 ? parts[1] : "";
 
-        // 应用补全
-        command.value = `${currentCmd} ${
-          matchingThemes[tabCompleteState.value.index]
-        }`;
-      }
-    }
-    // 情况2：没有输入前缀，按顺序循环补全
-    else {
-      // 检查状态是否匹配当前命令
-      if (
-        tabCompleteState.value.currentCmd !== currentCmd ||
-        tabCompleteState.value.items.length === 0
-      ) {
-        // 重置状态
-        tabCompleteState.value.currentCmd = currentCmd;
-        tabCompleteState.value.currentArg = currentArg;
-        tabCompleteState.value.items = allThemes;
-        tabCompleteState.value.index = -1;
-      }
+    // font命令的可用字体列表，包括default选项
+    const availableFonts = [
+      "0xProto Nerd Font",
+      "Fira Code",
+      "Cascadia Code",
+      "JetBrains Mono",
+      "default",
+    ];
 
-      // 计算下一个索引
-      tabCompleteState.value.index =
-        (tabCompleteState.value.index + 1) % allThemes.length;
-
-      // 应用补全
-      command.value = `${currentCmd} ${
-        allThemes[tabCompleteState.value.index]
-      }`;
-    }
+    // 使用通用补全函数进行字体补全
+    handleGenericCompletion(currentCmd, currentArg, availableFonts);
   }
 };
 
@@ -901,57 +1013,88 @@ onMounted(async () => {
   };
   window.addEventListener("resize", handleResize);
 
-  // 直接显示命令，不隐藏欢迎界面
-  updateTime();
+  // 加载历史命令
+  loadHistory();
 
-  // 检查cookie，只有第一次进入网站时才自动执行命令
-  const hasVisited = document.cookie.includes("hasVisited=true");
-  if (!hasVisited) {
-    // 设置cookie，有效期为1年
-    document.cookie = "hasVisited=true; max-age=31536000; path=/";
+  // 初始化应用配置（先加载config.toml，再加载localStorage设置）
+  await initApp();
 
-    // 自动执行cat Readme.md命令
-    const catConversation = {
-      id: Date.now(),
-      command: {
-        content: "cat Readme.md",
-        time: currentTime.value,
-        dir: currentDir.value,
-      },
-      output: [],
-    };
-    conversations.value.push(catConversation);
-    currentConversation = catConversation;
-    await commands.cat(
-      articles,
-      currentDir.value,
-      currentConversation,
-      getArticleInfo,
-      "Readme.md",
-      theme.current
-    );
-    await scrollToBottom();
+  // 封装自动执行命令的函数
+  const autoExecuteCommands = async (commandsStr) => {
+    // 将命令字符串按|分割成命令数组
+    const commandsList = commandsStr.split("|");
 
-    // 自动执行tree命令
-    await nextTick();
-    const treeConversation = {
-      id: Date.now() + 1,
-      command: {
-        content: "tree",
-        time: currentTime.value,
-        dir: currentDir.value,
-      },
-      output: [],
-    };
-    conversations.value.push(treeConversation);
-    currentConversation = treeConversation;
-    await commands.tree(
-      articles,
-      currentDir.value,
-      currentConversation,
-      getDirIcon
-    );
-    await scrollToBottom();
+    // 遍历命令数组，依次执行每个命令
+    for (const cmdStr of commandsList) {
+      const cmd = cmdStr.trim();
+      if (!cmd) continue;
+
+      // 解析命令和参数
+      const args = cmd.split(" ");
+      const cmdName = args[0];
+      const cmdArgs = args.slice(1);
+
+      // 创建新的对话对象
+      const newConversation = {
+        id: Date.now() + Math.random(),
+        command: {
+          content: cmd,
+          time: currentTime.value,
+          dir: currentDir.value,
+        },
+        output: [],
+      };
+
+      // 添加到对话数组
+      conversations.value.push(newConversation);
+      // 设置当前对话引用
+      currentConversation = newConversation;
+
+      try {
+        // 执行命令
+        if (commands[cmdName]) {
+          // 创建命令上下文对象
+          const context = {
+            articles,
+            currentDir: currentDir.value,
+            currentDirRef: currentDir,
+            conversation: currentConversation,
+            getArticleInfo,
+            getDirIcon,
+            fontSize,
+            font,
+            background,
+            theme,
+            infoBarColors,
+            conversations,
+            showWelcome,
+          };
+
+          // 执行命令
+          await commands[cmdName](context, ...cmdArgs);
+        } else {
+          currentConversation.output.push({
+            type: "error",
+            content: `Command not found: ${cmdName}`,
+          });
+        }
+      } catch (error) {
+        currentConversation.output.push({
+          type: "error",
+          content: `Error executing command: ${error.message}`,
+        });
+      }
+
+      // 等待DOM更新后滚动到底部
+      await scrollToBottom();
+      await nextTick();
+    }
+  };
+
+  // 检查是否有terminalHistory，如果没有则自动执行命令
+  if (history.commands.value.length === 0) {
+    // 自动执行命令
+    await autoExecuteCommands("cat Readme.md|tree");
   }
 
   onUnmounted(() => {

@@ -1,15 +1,4 @@
 {
-  "commands": [
-    "ls",
-    "cd",
-    "cat",
-    "tree",
-    "help",
-    "clear",
-    "size",
-    "background",
-    "wget"
-  ],
   "posts": [
     {
       "name": "Alan",

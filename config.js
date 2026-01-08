@@ -109,22 +109,8 @@ if (downloadDir) {
   posts.push(downloadDir);
 }
 
-// 固定的commands数组
-const commands = [
-  "ls",
-  "cd",
-  "cat",
-  "tree",
-  "help",
-  "clear",
-  "size",
-  "background",
-  "wget",
-];
-
 // 生成最终的JSON对象
 const postsJson = {
-  commands,
   posts,
 };
 

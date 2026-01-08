@@ -5,6 +5,12 @@
 [app]
 user = "Alan"
 
+# 欢迎语配置
+[welcome]
+title = "Welcome to My Terminal Blog"
+welcomeMsg = "📝 Type 'ls' to see categories, 'cat file.md' to read articles, 'tree' to see directory structure"
+helpMsg = "💡 Type 'help' for available commands"
+
 # ASCII字符画配置
 [ascii]
 art = """
@@ -39,7 +45,7 @@ art = """
 
 # UI相关配置
 [ui]
-fontSize = "16"
+fontSize = "18"
 fontFamily = "Consolas, Monaco, 'Courier New', monospace"
 
 # 信息栏样式配置
@@ -52,12 +58,12 @@ padding = "0 10px"
 
 # 信息栏各元素配色
 [ui.infoBar.colors]
-username = "#4ec9b0"
-dayOfWeek = "#569cd6"
-commandTime = "#9cdcfe"
-latency = "#c586c0"
+username = "#ffbebc"
+dayOfWeek = "#bc93ff"
+commandTime = "#bc93ff"
+latency = "#a9ffb4"
 cpu = "#ce9178"
-mem = "#4ec9b0"
+mem = "#a9ffb4"
 
 # 主题配置
 [theme]
@@ -78,10 +84,10 @@ error = "#ff0055"
 [theme.default]
 background = "#000000"
 text = "#ffffff"
-prompt = "#00ff00"
-command = "#ffff00"
-directory = "#00ffff"
-file = "#ff00ff"
+prompt = "#3b82f6"
+command = "#ffffff"
+directory = "#60a5fa"
+file = "#fbbf24"
 error = "#ff0000"
 
 [theme.dark]

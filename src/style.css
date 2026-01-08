@@ -14,7 +14,7 @@ body {
   font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
     "Segoe UI Emoji", "Cascadia Code", "Consolas", "Monaco", "Courier New",
     Courier, monospace;
-  background: url("/background.jpg") center/cover no-repeat fixed;
+  background: transparent;
   color: #ffffff;
   overflow: hidden;
   margin: 0;
@@ -40,6 +40,9 @@ body {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: #ffffff;
+  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
+    "Segoe UI Emoji", "Cascadia Code", "Consolas", "Monaco", "Courier New",
+    Courier, monospace;
 }
 
 /* Terminal Content */
@@ -148,6 +151,8 @@ body {
   margin-right: 8px;
   font-weight: bold;
   font-size: inherit;
+  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
+    "Segoe UI Emoji", monospace;
 }
 
 .prompt-symbol {
@@ -155,16 +160,22 @@ body {
   margin-right: 8px;
   font-weight: bold;
   font-size: inherit;
+  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
+    "Segoe UI Emoji", monospace;
 }
 
 .command-content {
   color: #ffffff;
   font-size: inherit;
+  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
+    "Segoe UI Emoji", monospace;
 }
 
 input.command-content {
   color: #ffffff;
   font-size: inherit;
+  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
+    "Segoe UI Emoji", monospace;
 }
 
 .input-container {
@@ -178,8 +189,9 @@ input {
   border: none;
   outline: none;
   color: #ffffff;
-  font-family: "Cascadia Code", "Consolas", "Monaco", "Courier New", Courier,
-    monospace;
+  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
+    "Segoe UI Emoji", "Cascadia Code", "Consolas", "Monaco", "Courier New",
+    Courier, monospace;
   font-size: inherit;
   line-height: inherit;
 }
@@ -272,6 +284,16 @@ input::placeholder {
   margin-bottom: 2px;
   visibility: visible;
   opacity: 1;
+}
+
+/* 隐藏历史对话中的信息栏 */
+.conversation .command-line .prompt-header {
+  display: none;
+}
+
+/* 确保当前输入行的信息栏仍然显示 */
+.input-line .prompt-header {
+  display: flex !important;
 }
 
 /* 移除CSS伪元素图标，恢复直接使用字符的方式 */

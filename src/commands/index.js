@@ -195,10 +195,64 @@ const help = async (context, ...args) => {
   const showAll = args.includes("-l");
 
   // 常用命令列表（默认显示）
-  const commonHelpText = `Available commands:\n\nls                    - List directory contents\ncd <dir>              - Change directory\ncat <file>            - Read markdown file\ntree                  - Display directory structure\nhelp                  - Show this help message\nsize <num|default>    - Set font size (12|14|16|18|20|24|default)\n\n💡 Type 'help -l' to see all available commands`;
+  const commonHelpText = `用法: <command> [options]
+
+命令列表:
+
+  ls                    列出目录内容
+  cd <dir>              切换目录
+  cat <file>            查看Markdown文件内容
+  tree                  显示目录结构
+  help                  显示此帮助信息
+  size <num|default>    设置字体大小 (1-26|default)
+  font [font-name]      显示当前字体或设置字体 (0xProto Nerd Font|Fira Code|Cascadia Code|JetBrains Mono)
+  background [0-1]      显示当前背景设置或设置透明度
+  wget <file>           下载文件
+
+💡 提示: 输入 'help -l' 查看所有可用命令`;
 
   // 完整命令列表（使用 -l 参数时显示）
-  const fullHelpText = `Available commands:\n\nls                    - List directory contents\ncd <dir>              - Change directory\ncat <file>            - Read markdown file\ntree                  - Display directory structure\nipconfig              - Show network configuration\nping <host>           - Send ICMP echo requests\nsize <num|default>    - Set font size (12|14|16|18|20|24|default)\nbackground            - Show current background settings\nbackground opacity <0-1> - Set background opacity\nbackground image <path>  - Set background image\ntheme                 - Show current theme and available themes\ntheme <name>          - Set markdown theme (default, dark, light, solarized, dracula)\necho <message>        - Print a message\nclear                 - Clear terminal\nhelp                  - Show this help message\n\n💡 Type 'help' without arguments to see only common commands`;
+  const fullHelpText = `终端博客命令帮助
+
+用法: <command> [options]
+
+基本命令:
+
+  ls                    列出目录内容
+  cd <dir>              切换目录
+  cat <file>            查看Markdown文件内容
+  tree                  显示完整目录结构
+  find <term>           搜索文章名称
+  wget <file>           下载文件
+
+网络命令:
+
+  ipconfig              显示网络配置信息
+  ping <host>           发送ICMP回显请求
+
+终端设置:
+
+  size <num|default>    设置字体大小 (1-26|default)
+  font [font-name]      显示当前字体或设置字体
+                        可用字体: 0xProto Nerd Font, Fira Code, Cascadia Code, JetBrains Mono
+  background            显示当前背景设置
+  background <0-1>      设置背景透明度 (0-1之间的数值)
+  background opacity <0-1> 设置背景透明度
+  background image <path>  设置背景图片路径
+  theme                 显示当前主题和可用主题
+  theme <name>          设置Markdown主题
+                        可用主题: default, dark, light, solarized, dracula
+
+实用命令:
+
+  echo <message>        打印消息
+  clear                 清空终端
+  help                  显示此帮助信息
+  help -l               显示完整帮助信息
+  test-config           测试配置加载
+  clear-config          清除所有配置和历史命令
+
+💡 提示: 输入命令名称后按Tab键可进行自动补全`;
 
   const helpText = showAll ? fullHelpText : commonHelpText;
   await addOutput(conversation, { type: "help", content: helpText });
@@ -215,42 +269,48 @@ const clear = async (context) => {
 const size = async (context, size) => {
   const { conversation, fontSize } = context;
   if (size === "default") {
-    fontSize.value = "16";
+    fontSize.value = "18";
     await addOutput(conversation, {
       type: "success",
-      content: "Font size set to default (16px)",
-    });
-  } else if (size && ["12", "14", "16", "18", "20", "24"].includes(size)) {
-    fontSize.value = size;
-    await addOutput(conversation, {
-      type: "success",
-      content: `Font size set to ${size}px`,
+      content: "Font size set to default (18px)",
     });
   } else {
-    await addOutput(conversation, {
-      type: "error",
-      content: "Usage: size <12|14|16|18|20|24|default>",
-    });
+    // 尝试将size转换为数字
+    const sizeNum = parseInt(size);
+    // 检查是否为1-26之间的有效数字
+    if (!isNaN(sizeNum) && sizeNum >= 1 && sizeNum <= 26) {
+      fontSize.value = sizeNum.toString();
+      await addOutput(conversation, {
+        type: "success",
+        content: `Font size set to ${sizeNum}px`,
+      });
+    } else {
+      await addOutput(conversation, {
+        type: "error",
+        content: "Usage: size <1-26|default>",
+      });
+    }
   }
 };
 
 // background 命令
 const background = async (context, ...args) => {
-  const { conversation, background } = context;
-  const { image: backgroundImage, opacity: backgroundOpacity } = background;
+  const { conversation, background: bg } = context;
 
   if (args.length === 0) {
     // 显示当前背景设置
     await addOutput(conversation, {
       type: "info",
-      content: `Current background settings:\n  Image: ${backgroundImage.value}\n  Opacity: ${backgroundOpacity.value}`,
+      content: `Current background settings:
+  Image: ${bg.image.value}
+  Opacity: ${bg.opacity.value}`,
     });
-  } else if (args[0] === "opacity") {
-    // 设置背景透明度
-    const opacity = args[1];
+  } else if (args.length === 1) {
+    // 只有一个参数时，直接作为透明度处理
+    const opacity = args[0];
     const opacityNum = parseFloat(opacity);
     if (!isNaN(opacityNum) && opacityNum >= 0 && opacityNum <= 1) {
-      backgroundOpacity.value = opacityNum.toString();
+      bg.opacity.value = opacityNum; // 保持数字类型，不转换为字符串
       await addOutput(conversation, {
         type: "success",
         content: `Background opacity set to ${opacity}`,
@@ -258,21 +318,79 @@ const background = async (context, ...args) => {
     } else {
       await addOutput(conversation, {
         type: "error",
-        content: "Usage: background opacity <0-1>",
+        content:
+          "Usage: background <0-1> | background opacity <0-1> | background image <path>",
+      });
+    }
+  } else if (args[0] === "opacity") {
+    // 设置背景透明度
+    const opacity = args[1];
+    const opacityNum = parseFloat(opacity);
+    if (!isNaN(opacityNum) && opacityNum >= 0 && opacityNum <= 1) {
+      bg.opacity.value = opacityNum; // 保持数字类型，不转换为字符串
+      await addOutput(conversation, {
+        type: "success",
+        content: `Background opacity set to ${opacity}`,
+      });
+    } else {
+      await addOutput(conversation, {
+        type: "error",
+        content: "Usage: background <0-1> | background opacity <0-1>",
       });
     }
   } else if (args[0] === "image") {
     // 设置背景图片
     const imagePath = args[1];
-    backgroundImage.value = imagePath;
+    if (!imagePath) {
+      await addOutput(conversation, {
+        type: "error",
+        content: "Usage: background image <path>",
+      });
+      return;
+    }
+
+    // 验证图片路径格式
+    let isValidUrl = false;
+    try {
+      // 尝试解析为URL
+      new URL(imagePath);
+      isValidUrl = true;
+    } catch {
+      // 不是URL，可能是本地路径
+      isValidUrl = false;
+    }
+
+    // 本地路径需要以/开头
+    if (!isValidUrl && !imagePath.startsWith("/")) {
+      await addOutput(conversation, {
+        type: "error",
+        content: "Local image path must start with /",
+      });
+      return;
+    }
+
+    // 设置背景图片
+    console.log("Setting background image to:", imagePath);
+    console.log("Background object:", bg);
+    bg.image.value = imagePath;
+    console.log("Background image value after setting:", bg.image.value);
     await addOutput(conversation, {
       type: "success",
       content: `Background image set to ${imagePath}`,
     });
+
+    // 显示当前背景设置，让用户确认修改
+    await addOutput(conversation, {
+      type: "info",
+      content: `Current background settings:
+  Image: ${bg.image.value}
+  Opacity: ${bg.opacity.value}`,
+    });
   } else {
     await addOutput(conversation, {
       type: "error",
-      content: "Usage: background [opacity <0-1>|image <path>]",
+      content:
+        "Usage: background <0-1> | background opacity <0-1> | background image <path>",
     });
   }
 };
@@ -549,46 +667,63 @@ const echo = async (context, ...args) => {
   });
 };
 
+// font 命令 - 修改字体
+const font = async (context, ...args) => {
+  const { conversation, font } = context;
+  const availableFonts = [
+    "0xProto Nerd Font",
+    "Fira Code",
+    "Cascadia Code",
+    "JetBrains Mono",
+  ];
+  const defaultFont = "Cascadia Code"; // 默认字体，避免文件图标乱码
+
+  if (args.length === 0) {
+    // 显示当前字体设置和可用字体
+    await addOutput(conversation, {
+      type: "info",
+      content: `Current font: ${
+        font.family.value
+      }\nAvailable fonts: ${availableFonts.join(", ")}, default`,
+    });
+  } else {
+    const fontName = args.join(" ");
+    if (availableFonts.includes(fontName)) {
+      font.family.value = fontName;
+      await addOutput(conversation, {
+        type: "success",
+        content: `Font set to ${fontName}`,
+      });
+    } else if (fontName === "default") {
+      // 切换回默认字体
+      font.family.value = defaultFont;
+      await addOutput(conversation, {
+        type: "success",
+        content: `Font set to default (${defaultFont})`,
+      });
+    } else {
+      await addOutput(conversation, {
+        type: "error",
+        content: `Font not found: ${fontName}\nAvailable fonts: ${availableFonts.join(
+          ", "
+        )}, default`,
+      });
+    }
+  }
+};
+
 // test-config 命令 - 测试配置是否正确加载
 const testConfig = async (context) => {
-  const {
-    conversation,
-    user,
-    fontSize,
-    fontFamily,
-    infoBar,
-    background,
-    theme,
-  } = context;
+  const { conversation, user, fontSize, background, theme } = context;
   await addOutput(conversation, {
     type: "info",
-    content: `Current configuration:\n  User: ${user.value}\n  Font: ${
-      fontFamily.value
-    }\n  Font Size: ${fontSize.value}\n  Info Bar:\n    Background: ${
-      infoBar.backgroundColor
-    }\n    Text: ${infoBar.textColor}\n    Border: ${
-      infoBar.borderColor
+    content: `Current configuration:\n  User: ${user.value}\n  Font Size: ${
+      fontSize.value
     }\n  Background:\n    Image: ${background.image.value}\n    Opacity: ${
       background.opacity.value
-    }\n    Position: ${background.position.value}\n    Size: ${
-      background.size.value
-    }\n    Repeat: ${background.repeat.value}\n  Theme: ${
+    }\n  Theme: ${
       theme.current.value
-    }\n  Available Themes: ${theme.available.value.join(
-      ", "
-    )}\n  Theme Colors for ${theme.current.value}:\n    Background: ${
-      theme.colors.value[theme.current.value]?.background || "N/A"
-    }\n    Text: ${
-      theme.colors.value[theme.current.value]?.text || "N/A"
-    }\n    Prompt: ${
-      theme.colors.value[theme.current.value]?.prompt || "N/A"
-    }\n    Command: ${
-      theme.colors.value[theme.current.value]?.command || "N/A"
-    }\n    Directory: ${
-      theme.colors.value[theme.current.value]?.directory || "N/A"
-    }\n    File: ${
-      theme.colors.value[theme.current.value]?.file || "N/A"
-    }\n    Error: ${theme.colors.value[theme.current.value]?.error || "N/A"}`,
+    }\n  Available Themes: ${theme.available.value.join(", ")}`,
   });
 };
 
@@ -750,6 +885,71 @@ const wget = async (context, ...args) => {
   }
 };
 
+// clear config 命令 - 清除所有样式设置和历史命令
+const clearConfig = async (context, ...args) => {
+  const {
+    conversation,
+    fontSize,
+    font,
+    background,
+    theme,
+    conversations,
+    clearHistory,
+  } = context;
+
+  // 清除localStorage中的设置和历史命令
+  localStorage.removeItem("terminalSettings");
+  localStorage.removeItem("terminalHistory");
+
+  // 重置应用程序状态
+  // 重置字体大小
+  if (fontSize) {
+    fontSize.value = "18"; // 恢复默认字体大小，匹配config.toml中的设置
+  }
+
+  // 重置字体
+  if (font && font.family) {
+    font.family.value = "Cascadia Code"; // 恢复默认字体
+  }
+
+  // 重置背景
+  if (background) {
+    if (background.image) {
+      background.image.value = "/background.jpg"; // 恢复默认背景图片
+    }
+    if (background.opacity) {
+      background.opacity.value = 0.9; // 恢复默认背景透明度
+    }
+  }
+
+  // 重置主题
+  if (theme && theme.current) {
+    theme.current.value = "default"; // 恢复默认主题
+  }
+
+  // 重置历史命令
+  if (clearHistory) {
+    clearHistory(); // 调用App.vue中定义的清除历史命令函数
+  }
+
+  // 显示成功信息
+  await addOutput(conversation, {
+    type: "success",
+    content: "All configuration and history have been cleared!",
+  });
+
+  // 清空对话历史
+  if (conversations && conversations.value) {
+    conversations.value = [];
+  }
+
+  // 不再需要提示用户刷新页面，因为状态已经立即更新
+  await addOutput(conversation, {
+    type: "info",
+    content: "All settings have been reset to default values.",
+  });
+};
+
 // 命令映射
 export const commands = {
   ls,
@@ -764,9 +964,11 @@ export const commands = {
   ping,
   theme,
   echo,
+  font,
   "test-config": testConfig,
   find,
   wget,
+  "clear-config": clearConfig,
 };
 
 // 默认导出，方便更优雅的导入
