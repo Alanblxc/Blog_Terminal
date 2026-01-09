@@ -182,10 +182,7 @@
             <div class="input-container">
               <input
                 v-model="command"
-                @keydown.enter="executeCommand"
-                @keydown.tab.prevent="handleTabComplete"
-                @keydown.up.prevent="handleHistory('up')"
-                @keydown.down.prevent="handleHistory('down')"
+                @keydown="handleKeydown"
                 ref="inputRef"
                 autofocus
                 class="command-content"
@@ -270,8 +267,10 @@ const {
   executeCommand,
   handleHistory,
   handleTabComplete,
+  handleKeydown, // 引入统一键盘处理
   focusInput,
   isDir,
+  editor, // 获取编辑器状态
 } = useTerminal(configContext);
 
 // 3. 系统状态监控 (时间和性能)

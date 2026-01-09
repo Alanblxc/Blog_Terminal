@@ -1,57 +1,591 @@
-// src/commands/vi.js
-import { escapeHtml } from "../composables/utils"; // 复用工具函数
+import { CommandAPI } from "../composables/CommandAPI";
+import { escapeHtml } from "../composables/utils";
 
-// 辅助函数：向当前对话添加输出
-const addOutput = async (conversation, output) => {
-  if (conversation) conversation.output.push(output);
-};
+/**
+ * 全屏编辑器类 (FullScreenEditor)
+ * 最终优化版：
+ * 1. 搜索高亮持久化：切换 INSERT/NORMAL/COMMAND 模式高亮不消失
+ * 2. 只有主动清空搜索(/ + 回车)或使用 :nohl 时才移除高亮
+ */
+class FullScreenEditor {
+  constructor(options = {}) {
+    this.options = options;
+    
+    // DOM 元素
+    this.overlay = null;
+    this.textarea = null;
+    this.highlightedContent = null;
+    this.lineNumbers = null;
+    this.statusBar = null;
+    this.commandInput = null;
+    
+    // 状态
+    this.mode = "NORMAL";
+    this.resolvePromise = null;
+    this.content = "";
+    this.clipboard = "";
+    this.searchQuery = ""; // 当前搜索词
+    this.lastChar = "";
+    
+    // 核心配置
+    this.lineHeight = 24; 
+    this.font = "'Cascadia Code', 'Consolas', 'Menlo', 'Monaco', 'Courier New', monospace";
+  }
 
-// vi 命令 - 终端内编辑文件
-const vi = async (context, fileName) => {
-  const { articles, currentDir, conversation, reloadConfig } = context;
+  async open(content) {
+    this.content = content;
+    this._createDOM();
+    this._bindEvents();
+    this._switchMode("NORMAL");
+    this._adjustScrollbarGap();
+    this._updateUI();
 
-  // 检查是否是config.toml或.md文件
-  if (!fileName) {
-    await addOutput(conversation, {
-      type: "error",
-      content: `vi: missing filename`,
+    requestAnimationFrame(() => {
+        this._updateUI();
+        this._adjustScrollbarGap();
     });
+
+    return new Promise((resolve) => {
+      this.resolvePromise = resolve;
+    });
+  }
+
+  close() {
+    this._cleanup();
+    if (this.options.onExit) this.options.onExit();
+    if (this.resolvePromise) this.resolvePromise();
+  }
+
+  _createDOM() {
+    // 1. 全屏遮罩
+    this.overlay = document.createElement("div");
+    this.overlay.className = "terminal-editor-overlay";
+    this.overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: #0f172a; z-index: 999; display: flex; flex-direction: column;
+      padding: 20px; box-sizing: border-box; font-family: ${this.font};
+    `;
+
+    // 2. 标题
+    const title = document.createElement("div");
+    title.style.cssText = "color: #64748b; font-size: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; flex-shrink: 0;";
+    title.innerHTML = `
+      <span>VI 编辑器: <strong style="color: #e2e8f0">${this.options.fileName || "Untitled"}</strong> ${this.options.readOnly ? "(只读)" : ""}</span>
+      <span>${this.options.language || "text"}</span>
+    `;
+    this.overlay.appendChild(title);
+
+    // 3. 编辑器容器
+    const container = document.createElement("div");
+    container.style.cssText = `
+      flex: 1; position: relative; background: #1e293b; border: 1px solid #334155;
+      border-radius: 4px; overflow: hidden; display: flex;
+    `;
+
+    // 行号
+    this.lineNumbers = document.createElement("div");
+    this.lineNumbers.style.cssText = `
+      width: 45px; height: 100%; background: #0f172a; flex-shrink: 0;
+      color: #475569; padding: 10px 5px; box-sizing: border-box; text-align: right;
+      user-select: none; border-right: 1px solid #334155; overflow: hidden; 
+      font-family: ${this.font}; font-size: 14px; line-height: ${this.lineHeight}px;
+    `;
+    container.appendChild(this.lineNumbers);
+
+    // 编辑区域
+    const editorStack = document.createElement("div");
+    editorStack.style.cssText = `
+      flex: 1; position: relative; display: grid; overflow: hidden; 
+      background: #1e293b;
+    `;
+    this.editorStack = editorStack;
+
+    // 通用样式
+    const commonStyle = `
+      grid-area: 1 / 1;
+      width: 100%;
+      height: 100%;
+      padding: 10px;
+      box-sizing: border-box; 
+      font-family: ${this.font}; 
+      font-size: 14px; 
+      line-height: ${this.lineHeight}px;
+      white-space: pre-wrap; 
+      word-wrap: break-word; 
+      word-break: break-all;
+      letter-spacing: 0px;
+      border: none;
+      margin: 0;
+      outline: none;
+    `;
+
+    // 高亮层
+    this.highlightedContent = document.createElement("div");
+    this.highlightedContent.style.cssText = `
+      ${commonStyle}
+      color: #e2e8f0; 
+      pointer-events: none;
+      overflow-y: scroll;
+      scrollbar-width: none;
+      padding-bottom: 40px;
+    `;
+    
+    // 滚动条样式
+    const styleTag = document.createElement('style');
+    styleTag.innerHTML = `.terminal-editor-overlay ::-webkit-scrollbar { width: 14px; background: #0f172a; } .terminal-editor-overlay ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }`;
+    document.head.appendChild(styleTag);
+    
+    // 输入层
+    this.textarea = document.createElement("textarea");
+    this.textarea.value = this.content;
+    this.textarea.spellcheck = false;
+    this.textarea.style.cssText = `
+      ${commonStyle}
+      background: transparent; 
+      color: transparent; 
+      caret-color: #e2e8f0;
+      resize: none; 
+      z-index: 1;
+      overflow-y: scroll;
+      padding-bottom: 40px;
+    `;
+    
+    editorStack.appendChild(this.highlightedContent);
+    editorStack.appendChild(this.textarea);
+    container.appendChild(editorStack);
+    this.overlay.appendChild(container);
+
+    // 4. 状态栏
+    this.statusBar = document.createElement("div");
+    this.statusBar.style.cssText = `
+      display: flex; justify-content: space-between; align-items: center; margin-top: 8px; flex-shrink: 0;
+      background: #334155; padding: 4px 12px; border-radius: 2px; color: #f8fafc; font-size: 12px;
+    `;
+    
+    this.modeIndicator = document.createElement("span");
+    this.modeIndicator.style.cssText = "padding: 2px 8px; border-radius: 2px; font-weight: bold; text-transform: uppercase;";
+    this.positionIndicator = document.createElement("span");
+    this.statusBar.appendChild(this.modeIndicator);
+    this.statusBar.appendChild(this.positionIndicator);
+    this.overlay.appendChild(this.statusBar);
+
+    // 5. 命令栏
+    const cmdContainer = document.createElement("div");
+    cmdContainer.style.cssText = "display: none; align-items: center; height: 36px; background: #0f172a; border-top: 1px solid #334155; padding: 0 10px; flex-shrink: 0;";
+    this.cmdPrompt = document.createElement("span");
+    this.cmdPrompt.style.cssText = "color: #3b82f6; margin-right: 5px; font-weight: bold; font-family: inherit;";
+    this.commandInput = document.createElement("input");
+    this.commandInput.style.cssText = "flex: 1; background: transparent; color: #e2e8f0; border: none; padding: 5px 0; font-family: inherit; font-size: 14px; outline: none;";
+    this.commandInputContainer = cmdContainer;
+    cmdContainer.appendChild(this.cmdPrompt);
+    cmdContainer.appendChild(this.commandInput);
+    this.overlay.appendChild(cmdContainer);
+
+    // 6. 提示框
+    this.hintBox = document.createElement("div");
+    this.hintBox.style.cssText = "color: #475569; font-size: 11px; margin-top: 8px; flex-shrink: 0;";
+    this.hintBox.innerHTML = "NORMAL: i(编辑) / n(下个) / N(上个) / : (命令) / / (搜索)";
+    this.overlay.appendChild(this.hintBox);
+
+    this.errorBox = document.createElement("div");
+    this.errorBox.style.cssText = "display: none; position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 4px; font-size: 13px; z-index: 1000;";
+    this.overlay.appendChild(this.errorBox);
+
+    document.body.appendChild(this.overlay);
+    this.textarea.focus();
+  }
+
+  _adjustScrollbarGap() {
+    const scrollbarWidth = this.textarea.offsetWidth - this.textarea.clientWidth;
+    this.highlightedContent.style.paddingRight = `${10 + scrollbarWidth}px`;
+  }
+
+  _bindEvents() {
+    this.textarea.addEventListener("scroll", () => {
+      this.highlightedContent.scrollTop = this.textarea.scrollTop;
+      this.lineNumbers.scrollTop = this.textarea.scrollTop;
+    });
+
+    this.textarea.addEventListener("input", () => {
+      this.content = this.textarea.value;
+      this._updateUI();
+      this._adjustScrollbarGap();
+    });
+    
+    window.addEventListener("resize", () => this._adjustScrollbarGap());
+
+    this.textarea.addEventListener("keydown", (e) => this._handleEditorKeydown(e));
+    this.textarea.addEventListener("click", () => this._updateCursor());
+    this.textarea.addEventListener("keyup", () => this._updateCursor());
+
+    this.commandInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        this._executeLastLineCommand();
+      } else if (e.key === "Escape") {
+        this._switchMode("NORMAL");
+      }
+    });
+  }
+
+  _handleEditorKeydown(e) {
+    if (this.mode === "INSERT") {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this._switchMode("NORMAL");
+      }
+      return;
+    }
+
+    if (this.mode === "NORMAL") {
+      const isMovementKey = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"].includes(e.key);
+      if (!isMovementKey) e.preventDefault();
+
+      const key = e.key;
+      const content = this.textarea.value;
+      const start = this.textarea.selectionStart;
+      
+      // --- 模式切换 ---
+      if (key === "i") {
+        this._switchMode("INSERT");
+      } else if (key === "a") {
+        this.textarea.selectionStart = Math.min(content.length, start + 1);
+        this.textarea.selectionEnd = this.textarea.selectionStart;
+        this._switchMode("INSERT");
+      } else if (key === "o") {
+        const lineEndPos = content.indexOf("\n", start);
+        const actualEndPos = lineEndPos === -1 ? content.length : lineEndPos;
+        const newContent = content.substring(0, actualEndPos) + "\n" + content.substring(actualEndPos);
+        this.textarea.value = newContent;
+        this.content = newContent;
+        this.textarea.selectionStart = this.textarea.selectionEnd = actualEndPos + 1;
+        this._updateUI();
+        this._switchMode("INSERT");
+      }
+      
+      // --- 搜索相关 (n/N) ---
+      else if (key === "n") {
+        this._findNext();
+      } else if (key === "N") {
+        this._findPrev();
+      }
+
+      // --- 删除/复制 ---
+      else if (key === "d") {
+        if (this.lastChar === "d") {
+          const lines = content.split("\n");
+          const currentLineIdx = content.substring(0, start).split("\n").length - 1;
+          this.clipboard = lines[currentLineIdx];
+          lines.splice(currentLineIdx, 1);
+          this.textarea.value = lines.join("\n");
+          this.content = this.textarea.value;
+          this._updateUI();
+          this._showMsg("已删除一行", "info");
+          this.lastChar = "";
+          this.textarea.selectionStart = start;
+          this.textarea.selectionEnd = start;
+        } else {
+          this.lastChar = "d";
+        }
+      } else if (key === "y") {
+        if (this.lastChar === "y") {
+          const lines = content.split("\n");
+          const currentLineIdx = content.substring(0, start).split("\n").length - 1;
+          this.clipboard = lines[currentLineIdx];
+          this._showMsg("已复制一行", "success");
+          this.lastChar = "";
+        } else {
+          this.lastChar = "y";
+        }
+      } else if (key === "p") {
+        if (this.clipboard) {
+          const lines = content.split("\n");
+          const currentLineIdx = content.substring(0, start).split("\n").length - 1;
+          lines.splice(currentLineIdx + 1, 0, this.clipboard);
+          this.textarea.value = lines.join("\n");
+          this.content = this.textarea.value;
+          this._updateUI();
+        }
+        this.lastChar = "";
+      }
+
+      // --- 基础移动 ---
+      else if (key === "h") {
+        this.textarea.selectionStart = Math.max(0, start - 1);
+        this.textarea.selectionEnd = this.textarea.selectionStart;
+        this._updateCursor();
+      } else if (key === "l") {
+        this.textarea.selectionStart = Math.min(content.length, start + 1);
+        this.textarea.selectionEnd = this.textarea.selectionStart;
+        this._updateCursor();
+      } else if (key === "j" || key === "k") {
+        const event = new KeyboardEvent("keydown", {
+          key: key === "j" ? "ArrowDown" : "ArrowUp", bubbles: true
+        });
+        this.textarea.dispatchEvent(event);
+      }
+
+      // --- 命令入口 ---
+      else if (key === ":") {
+        this.cmdPrompt.textContent = ":";
+        this._switchMode("COMMAND");
+      } else if (key === "/") {
+        this.cmdPrompt.textContent = "/";
+        this._switchMode("COMMAND");
+      } else {
+        if (key !== "d" && key !== "y") this.lastChar = "";
+      }
+    }
+  }
+
+  _switchMode(mode) {
+    this.mode = mode;
+    this.commandInputContainer.style.display = (mode === "COMMAND") ? "flex" : "none";
+    this.hintBox.style.display = (mode === "COMMAND") ? "none" : "block";
+
+    if (mode === "COMMAND") {
+      this.modeIndicator.textContent = "COMMAND";
+      this.modeIndicator.style.background = "#3b82f6";
+      this.commandInput.value = "";
+      this.commandInput.focus();
+    } else if (mode === "INSERT") {
+      this.modeIndicator.textContent = "INSERT";
+      this.modeIndicator.style.background = "#10b981";
+      this.textarea.readOnly = false;
+      this.textarea.focus();
+    } else {
+      this.modeIndicator.textContent = "NORMAL";
+      this.modeIndicator.style.background = "#fbbf24";
+      this.textarea.readOnly = true;
+      this.textarea.focus();
+    }
+    this._updateUI(); 
+  }
+
+  async _executeLastLineCommand() {
+    const rawCmd = this.commandInput.value.trim();
+    const type = this.cmdPrompt.textContent;
+
+    this._switchMode("NORMAL");
+    this.textarea.focus();
+
+    if (type === "/") {
+      if (rawCmd === "") {
+        // 主动清空搜索：/ + 回车 -> 清空高亮
+        this.searchQuery = "";
+        this._updateUI();
+        this._showMsg("已清除搜索高亮", "info");
+      } else {
+        this.searchQuery = rawCmd;
+        this._updateUI();
+        this._performSearch();
+      }
+      return;
+    }
+
+    const cmd = rawCmd;
+    if (cmd === "w") {
+      if (this.options.onSave) await this.options.onSave(this.content);
+      this._showMsg("已写入", "success");
+    } else if (cmd === "q") {
+      this.close();
+    } else if (cmd === "wq") {
+      if (this.options.onSave) await this.options.onSave(this.content);
+      this.close();
+    } else if (cmd === "q!") {
+      this.close();
+    } else if (cmd === "nohl") {
+      this.searchQuery = "";
+      this._updateUI();
+      this._showMsg("已清除高亮", "info");
+    } else if (cmd.startsWith("%s/")) {
+      try {
+        const parts = cmd.split("/");
+        if (parts.length >= 3) {
+          const oldStr = parts[1];
+          const newStr = parts[2];
+          const regex = new RegExp(oldStr, parts[3] === "g" ? "g" : "");
+          this.content = this.content.replace(regex, newStr);
+          this.textarea.value = this.content;
+          this._updateUI();
+          this._showMsg("替换完成", "success");
+        }
+      } catch (e) {
+        this._showMsg("正则错误", "error");
+      }
+    } else {
+      this._showMsg("未知命令", "error");
+    }
+  }
+
+  _performSearch() {
+    if (!this.searchQuery) return;
+    this.textarea.focus();
+    
+    const startIndex = this.textarea.selectionStart;
+    let index = this.content.indexOf(this.searchQuery, startIndex + 1);
+    
+    if (index === -1) {
+      index = this.content.indexOf(this.searchQuery);
+    }
+    
+    if (index !== -1) {
+      this._scrollToMatch(index);
+    } else {
+      this._showMsg("未找到匹配项", "error");
+    }
+  }
+
+  _findNext() {
+    if (!this.searchQuery) {
+        this._showMsg("无搜索模式", "error");
+        return;
+    }
+    
+    const start = this.textarea.selectionEnd; 
+    let index = this.content.indexOf(this.searchQuery, start);
+    
+    if (index === -1) {
+        index = this.content.indexOf(this.searchQuery);
+        this._showMsg("回到顶部", "info");
+    }
+    
+    if (index !== -1) {
+        this._scrollToMatch(index);
+    }
+  }
+
+  _findPrev() {
+    if (!this.searchQuery) {
+        this._showMsg("无搜索模式", "error");
+        return;
+    }
+
+    const start = this.textarea.selectionStart; 
+    let index = this.content.lastIndexOf(this.searchQuery, Math.max(0, start - 1));
+    
+    if (index === -1) {
+        index = this.content.lastIndexOf(this.searchQuery);
+        this._showMsg("回到底部", "info");
+    }
+    
+    if (index !== -1) {
+        this._scrollToMatch(index);
+    }
+  }
+
+  _scrollToMatch(index) {
+    this.textarea.setSelectionRange(index, index + this.searchQuery.length);
+    
+    const textBefore = this.content.substring(0, index);
+    const linesBefore = textBefore.split("\n").length - 1;
+    const targetScrollTop = (linesBefore * this.lineHeight) - (this.textarea.clientHeight / 2);
+    
+    this.textarea.scrollTop = Math.max(0, targetScrollTop);
+    this._updateUI(); 
+  }
+
+  _updateUI() {
+    const lines = this.textarea.value.split("\n");
+    this.lineNumbers.innerHTML = lines.map((_, i) => i + 1).join("<br>");
+    
+    let highlightedHtml = lines.map(line => this._processLine(line)).join("\n");
+    if (this.textarea.value.endsWith("\n")) {
+      highlightedHtml += "\n ";
+    }
+    this.highlightedContent.innerHTML = highlightedHtml;
+    this._updateCursor();
+  }
+
+  _processLine(line) {
+    if (!line) return ""; 
+    let processed = escapeHtml(line);
+    
+    if (this.searchQuery) {
+      const safeQuery = escapeHtml(this.searchQuery).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      try {
+        const regex = new RegExp(`(${safeQuery})`, "gi");
+        processed = processed.replace(regex, `<mark style="background: #fbbf24; color: #000; border-radius: 2px;">$1</mark>`);
+      } catch (e) {}
+    }
+
+    const tokenRegex = /(<[^>]+>)|(&quot;.*?&quot;)|(#.*)|(^\s*[\w\-_]+(?=\s*=))|(\b\d+\.?\d*\b)|([\[\]{}])|(&lt;!--.*?--&gt;)/g;
+    return processed.replace(tokenRegex, (match, htmlTag, str, comment, key, num, brackets, htmlComment) => {
+      if (htmlTag) return match; 
+      if (str) return `<span style="color: #fbbf24;">${match}</span>`;
+      if (comment || htmlComment) return `<span style="color: #64748b;">${match}</span>`;
+      if (key) return `<span style="color: #3b82f6;">${match}</span>`;
+      if (num) return `<span style="color: #10b981;">${match}</span>`;
+      if (brackets) return `<span style="color: #8b5cf6;">${match}</span>`;
+      return match;
+    });
+  }
+
+  _updateCursor() {
+    const start = this.textarea.selectionStart;
+    const textBefore = this.textarea.value.substring(0, start);
+    const lines = textBefore.split("\n");
+    const row = lines.length;
+    const col = lines[lines.length - 1].length + 1;
+    this.positionIndicator.textContent = `${row}:${col}`;
+  }
+
+  _showMsg(msg, type) {
+    this.errorBox.textContent = msg;
+    this.errorBox.style.display = "block";
+    this.errorBox.style.background = type === "error" ? "#7f1d1d" : (type === "success" ? "#064e3b" : "#1e293b");
+    this.errorBox.style.color = "#f8fafc";
+    this.errorBox.style.border = `1px solid ${type === "error" ? "#f43f5e" : (type === "success" ? "#10b981" : "#3b82f6")}`;
+    setTimeout(() => {
+      this.errorBox.style.display = "none";
+    }, 2500);
+  }
+
+  _cleanup() {
+    if (this.overlay && this.overlay.parentNode) {
+      document.body.removeChild(this.overlay);
+    }
+  }
+}
+
+const vi = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const fileName = cmd.args[0];
+
+  if (!fileName) {
+    cmd.error("vi: 缺少文件名参数");
     return;
   }
 
-  // 确定文件类型和内容
-  let fileContent = "";
-  let isConfigFile = fileName === "config.toml";
-  let isMdFile = fileName.endsWith(".md");
-  let canSave = isConfigFile;
+  const { articles } = cmd.raw;
+  let content = "";
+  let isReadOnly = true;
+  let fileType = "unknown";
 
-  // 清理HTML标签的函数，确保只处理纯文本
   const cleanHtmlTags = (text) => {
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = text;
     return tempDiv.textContent || tempDiv.innerText || "";
   };
 
-  // 获取文件内容
-  if (isConfigFile) {
-    // config.toml从localStorage获取，确保是纯文本
-    const rawContent = localStorage.getItem("terminalConfigToml") || "";
-    fileContent = cleanHtmlTags(rawContent);
-  } else if (isMdFile) {
-    // .md文件从服务器获取
+  if (fileName === "config.toml" && cmd.cwd === "/") {
+    const rawContent = await cmd.readFile(fileName);
+    content = cleanHtmlTags(rawContent || "");
+    isReadOnly = false;
+    fileType = "toml";
+  } else if (fileName.endsWith(".md")) {
+    fileType = "markdown";
     try {
-      // 获取当前目录下的文件信息
-      const currentContent = articles[currentDir];
+      const currentContent = articles[cmd.cwd];
       if (currentContent && currentContent.type === "dir") {
         const fileInfo = currentContent.content.find(
           (item) => item.type === "file" && item.name === fileName
         );
 
         if (fileInfo) {
-          // 读取文件内容
           const response = await fetch(fileInfo.path.replace("./", "/"));
           if (response.ok) {
-            fileContent = await response.text();
+            content = await response.text();
+            isReadOnly = true;
           } else {
             throw new Error("File not found");
           }
@@ -62,541 +596,34 @@ const vi = async (context, fileName) => {
         throw new Error("Directory not found");
       }
     } catch (error) {
-      await addOutput(conversation, {
-        type: "error",
-        content: `vi: ${fileName}: No such file or directory`,
-      });
+      cmd.error(`vi: ${fileName}: 没有那个文件或目录`);
       return;
     }
   } else {
-    await addOutput(conversation, {
-      type: "error",
-      content: `vi: ${fileName}: Unsupported file type`,
-    });
+    cmd.error(`vi: ${fileName}: 不支持的文件类型`);
     return;
   }
 
-  // 显示编辑器提示
-  let editHint = "";
-  if (!canSave) {
-    editHint = " (READ-ONLY: .md files cannot be saved)";
-  }
-
-  await addOutput(conversation, {
-    type: "info",
-    content: `=== EDITING ${fileName}${editHint} ===\n`,
-  });
-
-  // 创建一个覆盖整个终端的编辑器
-  const editorOverlay = document.createElement("div");
-  editorOverlay.className = "terminal-editor-overlay";
-  editorOverlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #0f172a;
-    z-index: 999;
-    display: flex;
-    flex-direction: column;
-    padding: 20px;
-    box-sizing: border-box;
-    font-family: 'Cascadia Code', monospace;
-  `;
-
-  // 创建编辑器标题
-  const editorTitle = document.createElement("div");
-  editorTitle.style.cssText = `
-    color: #e2e8f0;
-    font-size: 16px;
-    margin-bottom: 15px;
-    font-weight: bold;
-  `;
-  editorTitle.textContent = `EDITING: ${fileName}`;
-  editorOverlay.appendChild(editorTitle);
-
-  // 创建编辑器容器
-  const editorContainer = document.createElement("div");
-  editorContainer.style.cssText = `
-    flex: 1;
-    position: relative;
-    background: #1e293b;
-    border: 1px solid #475569;
-    border-radius: 4px;
-    overflow: hidden;
-    font-family: 'Cascadia Code', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-  `;
-
-  // 创建行号
-  const lineNumbers = document.createElement("div");
-  lineNumbers.style.cssText = `
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 50px;
-    background: #0f172a;
-    color: #64748b;
-    padding: 15px 8px;
-    box-sizing: border-box;
-    font-size: 14px;
-    line-height: 1.5;
-    text-align: right;
-    user-select: none;
-  `;
-  editorContainer.appendChild(lineNumbers);
-
-  // 创建高亮内容显示区
-  const highlightedContent = document.createElement("div");
-  highlightedContent.style.cssText = `
-    position: absolute;
-    left: 50px;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    margin: 0;
-    padding: 15px;
-    box-sizing: border-box;
-    background: transparent;
-    color: #e2e8f0;
-    font-family: 'Cascadia Code', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    overflow: hidden;
-    pointer-events: none;
-  `;
-  editorContainer.appendChild(highlightedContent);
-
-  // 创建文本区域
-  const textarea = document.createElement("textarea");
-  textarea.value = fileContent;
-  textarea.style.cssText = `
-    position: absolute;
-    left: 50px;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: calc(100% - 50px);
-    height: 100%;
-    background: transparent;
-    color: transparent;
-    border: none;
-    padding: 15px;
-    box-sizing: border-box;
-    font-family: 'Cascadia Code', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    resize: none;
-    outline: none;
-    caret-color: #e2e8f0;
-    z-index: 1;
-  `;
-  editorContainer.appendChild(textarea);
-
-  // 创建状态栏
-  const statusBar = document.createElement("div");
-  statusBar.style.cssText = `
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 10px;
-    background: #1e293b;
-    padding: 5px 10px;
-    border-radius: 3px;
-    color: #e2e8f0;
-    font-size: 12px;
-  `;
-
-  // 状态栏内容
-  const modeIndicator = document.createElement("span");
-  modeIndicator.textContent = "INSERT";
-  modeIndicator.style.cssText = `
-    color: #10b981;
-    font-weight: bold;
-  `;
-
-  const fileIndicator = document.createElement("span");
-  fileIndicator.textContent = fileName;
-
-  const positionIndicator = document.createElement("span");
-  positionIndicator.textContent = "1:1";
-
-  statusBar.appendChild(modeIndicator);
-  statusBar.appendChild(fileIndicator);
-  statusBar.appendChild(positionIndicator);
-
-  // 创建命令输入区域
-  const commandContainer = document.createElement("div");
-  commandContainer.style.cssText = `
-    display: flex;
-    align-items: center;
-    margin-top: 15px;
-    background: #1e293b;
-    padding: 10px;
-    border-radius: 3px;
-    display: none; /* 初始隐藏，仅在命令模式下显示 */
-  `;
-
-  // 命令提示符
-  const commandPrompt = document.createElement("span");
-  commandPrompt.style.cssText = `
-    color: #e2e8f0;
-    margin-right: 10px;
-    font-weight: bold;
-  `;
-  commandPrompt.textContent = ":";
-  commandContainer.appendChild(commandPrompt);
-
-  // 命令输入框
-  const commandInput = document.createElement("input");
-  commandInput.type = "text";
-  commandInput.placeholder = "Enter command (wq, q!)";
-  commandInput.style.cssText = `
-    flex: 1;
-    background: #0f172a;
-    color: #e2e8f0;
-    border: 1px solid #475569;
-    border-radius: 3px;
-    padding: 5px 10px;
-    font-family: 'Cascadia Code', monospace;
-    font-size: 14px;
-    outline: none;
-  `;
-  commandContainer.appendChild(commandInput);
-
-  // 创建指令提示
-  const instructions = document.createElement("div");
-  instructions.style.cssText = `
-    color: #94a3b8;
-    font-size: 12px;
-    margin-top: 15px;
-    background: #1e293b;
-    padding: 10px;
-    border-radius: 3px;
-  `;
-  instructions.innerHTML = `
-    <strong>COMMANDS:</strong><br>
-    <code>:w</code> - Save file<br>
-    <code>:wq</code> - Save and exit<br>
-    <code>:q</code> - Quit without saving (if no changes)<br>
-    <code>:q!</code> - Quit without saving<br>
-    <code>:</code> - Enter command mode<br>
-    <code>ESC</code> - Return to edit mode from command mode
-  `;
-
-  // 添加到编辑器覆盖层
-  editorOverlay.appendChild(editorContainer);
-  editorOverlay.appendChild(statusBar);
-  editorOverlay.appendChild(commandContainer);
-  editorOverlay.appendChild(instructions);
-
-  // 更新行号
-  const updateLineNumbers = () => {
-    const lines = textarea.value.split("\n");
-    const lineCount = lines.length;
-    let lineNumbersHTML = "";
-    for (let i = 1; i <= lineCount; i++) {
-      lineNumbersHTML += `${i}\n`;
-    }
-    lineNumbers.textContent = lineNumbersHTML;
-  };
-
-  // 更新光标位置
-  const updatePosition = () => {
-    const start = textarea.selectionStart;
-    const content = textarea.value;
-    const lines = content.substring(0, start).split("\n");
-    const line = lines.length;
-    const col = lines[lines.length - 1].length + 1;
-    positionIndicator.textContent = `${line}:${col}`;
-  };
-
-  /**
-   * 2. 核心：单行处理函数（Tokenizer 模式）
-   * 使用组合正则一次性扫描，避免高亮规则冲突
-   */
-  const processLine = (line) => {
-    if (!line) return "<br>"; // 保持空行高度
-    // 定义所有语法的组合正则
-    // 注意顺序非常重要：
-    // 1. 字符串 ("...") - 必须最先匹配，防止字符串里的 # 被当成注释，或字符串里的数字被拆分
-    // 2. 注释 (#...) - 匹配到行尾
-    // 3. 键名 (key =) - 匹配行首的单词
-    // 4. 数字 - 整数或小数
-    // 5. 括号 - [] {}
-    const tokenRegex =
-      /("[^"]*")|(#.*)|(^\s*[\w\-_]+(?=\s*=))|(\b\d+\.?\d*\b)|([\[\]{}])/g;
-    let html = "";
-    let lastIndex = 0;
-    let match;
-    // 循环匹配当前行
-    while ((match = tokenRegex.exec(line)) !== null) {
-      // A. 处理匹配内容之前的普通文本（比如空格、等号等）
-      const plainText = line.substring(lastIndex, match.index);
-      if (plainText) {
-        html += escapeHtml(plainText);
+  const editor = new FullScreenEditor({
+    fileName,
+    readOnly: isReadOnly,
+    language: fileType,
+    onSave: async (newContent) => {
+      if (fileName === "config.toml" && cmd.cwd === "/") {
+        cmd.writeFile(fileName, newContent);
+        cmd.success(`${fileName} 保存成功。`);
+        await cmd.reloadConfig();
+        cmd.info("配置已重载。");
       }
-      // B. 解构正则捕获组
-      // fullMatch 是完全匹配的内容
-      // 后面对应上面正则的 5 个括号组
-      const [fullMatch, string, comment, key, number, brackets] = match;
-      // C. 根据捕获到的类型，包裹对应的颜色标签
-      // 注意：这里必须先 escapeHtml(内容)，再包裹 span
-      if (string) {
-        html += `<span style="color: #fbbf24;">${escapeHtml(string)}</span>`;
-      } else if (comment) {
-        html += `<span style="color: #64748b;">${escapeHtml(comment)}</span>`;
-      } else if (key) {
-        html += `<span style="color: #3b82f6;">${escapeHtml(key)}</span>`;
-      } else if (number) {
-        html += `<span style="color: #10b981;">${escapeHtml(number)}</span>`;
-      } else if (brackets) {
-        html += `<span style="color: #8b5cf6;">${escapeHtml(brackets)}</span>`;
+    },
+    onExit: () => {
+      if (!isReadOnly && fileName !== "config.toml") {
+         cmd.info("已退出编辑器");
       }
-      // 更新指针位置
-      lastIndex = tokenRegex.lastIndex;
-    }
-    // D. 处理行尾剩余的普通文本
-    const remaining = line.substring(lastIndex);
-    if (remaining) {
-      html += escapeHtml(remaining);
-    }
-    return html;
-  };
-
-  /**
-   * 3. 主应用函数
-   */
-  const applySyntaxHighlighting = () => {
-    // 获取原始内容
-    const rawText = textarea.value || "";
-
-    // 按行分割
-    const lines = rawText.split("\n");
-    // 处理每一行
-    const htmlResult = lines
-      .map((line) => {
-        // 处理当前行
-        return processLine(line);
-      })
-      .join("\n");
-    // 一次性写入 DOM
-    highlightedContent.innerHTML = htmlResult;
-  };
-
-  // 同步滚动
-  textarea.addEventListener("scroll", () => {
-    highlightedContent.scrollTop = textarea.scrollTop;
-    lineNumbers.scrollTop = textarea.scrollTop;
-  });
-
-  // 输入事件处理
-  textarea.addEventListener("input", () => {
-    updateLineNumbers();
-    applySyntaxHighlighting();
-    updatePosition();
-  });
-
-  // 点击和按键事件处理
-  textarea.addEventListener("click", updatePosition);
-  textarea.addEventListener("keydown", updatePosition);
-
-  // 初始化
-  updateLineNumbers();
-  applySyntaxHighlighting();
-  updatePosition();
-
-  // 添加到页面
-  document.body.appendChild(editorOverlay);
-
-  // 聚焦到文本框
-  textarea.focus();
-
-  // 资源清理函数
-  const cleanupEditor = () => {
-    try {
-      // 移除DOM元素
-      if (editorOverlay.parentNode) {
-        document.body.removeChild(editorOverlay);
-      }
-    } catch (error) {
-      console.error("Error cleaning up editor:", error);
-    }
-  };
-
-  // 返回一个Promise，确保vi命令不会立即结束
-  return new Promise(async (resolve) => {
-    try {
-      // 切换到命令模式
-      const switchToCommandMode = () => {
-        textarea.blur();
-        textarea.style.borderColor = "#3c3c3c";
-        commandContainer.style.display = "flex";
-        commandInput.focus();
-        modeIndicator.textContent = "COMMAND";
-        modeIndicator.style.color = "#f43f5e";
-      };
-
-      // 切换到编辑模式
-      const switchToEditMode = () => {
-        commandInput.blur();
-        commandContainer.style.display = "none";
-        textarea.style.borderColor = "#3c3c3c";
-        textarea.focus();
-        modeIndicator.textContent = "INSERT";
-        modeIndicator.style.color = "#10b981";
-      };
-
-      // 创建错误信息显示区域
-      const errorContainer = document.createElement("div");
-      errorContainer.style.cssText = `
-      color: #ff0000;
-      font-size: 12px;
-      margin-top: 10px;
-      padding: 8px;
-      background: rgba(255, 0, 0, 0.1);
-      border-radius: 3px;
-      display: none;
-    `;
-      editorOverlay.appendChild(errorContainer);
-
-      // 显示错误信息
-      const showError = (message) => {
-        errorContainer.textContent = message;
-        errorContainer.style.display = "block";
-        // 3秒后自动隐藏错误信息
-        setTimeout(() => {
-          errorContainer.style.display = "none";
-        }, 3000);
-      };
-
-      // 显示成功信息
-      const showSuccess = (message) => {
-        errorContainer.textContent = message;
-        errorContainer.style.color = "#00ff00";
-        errorContainer.style.background = "rgba(0, 255, 0, 0.1)";
-        errorContainer.style.display = "block";
-        // 3秒后自动隐藏成功信息
-        setTimeout(() => {
-          errorContainer.style.display = "none";
-        }, 3000);
-      };
-
-      // 处理命令
-      const handleCommand = async (command) => {
-        // 清理命令输入
-        const cmd = command.trim();
-        commandInput.value = ""; // 清空命令输入框
-
-        switch (cmd) {
-          case "w":
-            if (canSave) {
-              // 保存文件 - 只允许config.toml保存
-              const newContent = textarea.value;
-              localStorage.setItem("terminalConfigToml", newContent);
-
-              // 显示成功信息
-              showSuccess(`${fileName} saved successfully.`);
-              switchToEditMode();
-
-              // 重新加载配置
-              if (reloadConfig) {
-                await reloadConfig();
-              }
-            } else {
-              // .md文件不允许保存
-              showError(`Cannot save ${fileName}: Read-only file`);
-              switchToEditMode();
-            }
-            break;
-
-          case "wq":
-            if (canSave) {
-              // 保存并退出 - 只允许config.toml保存
-              const newContent = textarea.value;
-              localStorage.setItem("terminalConfigToml", newContent);
-
-              // 通知用户保存成功
-              await addOutput(conversation, {
-                type: "success",
-                content: `${fileName} saved successfully.`,
-              });
-
-              // 重新加载配置
-              if (reloadConfig) {
-                await reloadConfig();
-                await addOutput(conversation, {
-                  type: "info",
-                  content: "Configuration reloaded successfully.",
-                });
-              }
-
-              // 清理资源并解决Promise，结束vi命令
-              cleanupEditor();
-              resolve();
-            } else {
-              // .md文件不允许保存
-              showError(`Cannot save ${fileName}: Read-only file`);
-              switchToEditMode();
-            }
-            break;
-
-          case "q":
-          case "q!":
-            // 退出不保存
-            await addOutput(conversation, {
-              type: "info",
-              content: `Exited without saving.`,
-            });
-
-            // 清理资源并解决Promise，结束vi命令
-            cleanupEditor();
-            resolve();
-            break;
-
-          case "":
-            // 空命令，返回编辑模式
-            switchToEditMode();
-            break;
-
-          default:
-            // 未知命令，显示错误并返回编辑模式
-            showError(`Unknown command: ${cmd}`);
-            switchToEditMode();
-            break;
-        }
-      };
-
-      // 监听文本区域的键盘事件
-      textarea.addEventListener("keydown", (e) => {
-        if (e.key === ":") {
-          // 输入:进入命令模式
-          switchToCommandMode();
-          e.preventDefault(); // 阻止:字符被输入到文本框
-        }
-      });
-
-      // 监听命令输入框的键盘事件
-      commandInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          // 回车键执行命令
-          handleCommand(commandInput.value);
-        } else if (e.key === "Escape") {
-          // ESC键返回编辑模式
-          switchToEditMode();
-        }
-      });
-    } catch (error) {
-      console.error("Error in vi editor:", error);
-      // 清理资源并解决Promise，结束vi命令
-      cleanupEditor();
-      resolve();
     }
   });
+
+  await editor.open(content);
 };
 
 export default vi;

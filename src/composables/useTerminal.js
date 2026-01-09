@@ -1,3 +1,4 @@
+
 import { ref, nextTick, watch } from "vue";
 import commands from "../commands";
 import {
@@ -15,6 +16,7 @@ export function useTerminal(configContext) {
     font,
     background,
     theme,
+    readTheme,
     uiStyles,
     infoBarColors,
     loadConfig,
@@ -27,7 +29,18 @@ export function useTerminal(configContext) {
   const terminalRef = ref(null);
   const currentDir = ref("/");
   const isCommandExecuting = ref(false);
+  const isWaitingForInput = ref(false); // 新增：是否正在等待交互式输入
   const showWelcome = ref(true);
+  
+  // 环境变量存储
+  const env = ref({
+    HOME: "/",
+    USER: configContext.user?.value || "User",
+    PATH: "/bin:/usr/bin",
+    SHELL: "/bin/sh",
+  });
+
+  let inputResolver = null; // 新增：用于 resolve prompt 的 Promise
 
   // 历史记录
   const history = {
@@ -82,6 +95,24 @@ export function useTerminal(configContext) {
   // 执行命令
   const executeCommand = async () => {
     const cmdStr = command.value.trim();
+    
+    // 如果正在等待交互式输入
+    if (isWaitingForInput.value && inputResolver) {
+      const resolver = inputResolver;
+      inputResolver = null;
+      isWaitingForInput.value = false;
+      
+      // 将输入内容作为普通文本回显到输出
+      const lastConv = conversations.value[conversations.value.length - 1];
+      if (lastConv) {
+        lastConv.output.push({ type: 'output', content: cmdStr });
+      }
+      
+      command.value = "";
+      resolver(cmdStr);
+      return;
+    }
+
     if (!cmdStr) return;
 
     isCommandExecuting.value = true;
@@ -124,6 +155,7 @@ export function useTerminal(configContext) {
           font,
           background,
           theme,
+          readTheme,
           infoBarColors,
           uiStyles,
           conversations,
@@ -131,6 +163,14 @@ export function useTerminal(configContext) {
           clearHistory,
           updateTomlConfig,
           reloadConfig: loadConfig,
+          scrollToBottom,
+          env,
+          waitForInput: () => {
+            isWaitingForInput.value = true;
+            return new Promise((resolve) => {
+              inputResolver = resolve;
+            });
+          },
         };
         await commands[cmdName](context, ...cmdArgs);
       } else {
@@ -213,8 +253,29 @@ export function useTerminal(configContext) {
     }
   });
 
+  // 补全导航
+  const handleTabNavigate = (direction) => {
+    if (!tabCompleteState.value.showAll || tabCompleteState.value.items.length === 0) return;
+    
+    const state = tabCompleteState.value;
+    const len = state.items.length;
+    
+    if (direction === "next") { // Tab 或 Down
+      state.index = (state.index + 1) % len;
+    } else if (direction === "prev") { // Up
+      state.index = (state.index - 1 + len) % len;
+    }
+    
+    command.value = `${state.currentCmd} ${state.items[state.index]}`;
+  };
+
   // --- 重构后的 Tab 补全 ---
-  const handleTabComplete = () => {
+  const handleTabComplete = (e) => {
+    // 如果已经在补全模式，Tab 键只负责切换
+    if (tabCompleteState.value.showAll) {
+       handleTabNavigate("next");
+       return;
+    }
     const parts = command.value.split(" ");
     const cmdName = parts[0];
     const arg = parts.length > 1 ? parts[1] : "";
@@ -268,9 +329,7 @@ export function useTerminal(configContext) {
     let matches = allCandidates.filter((item) => item.startsWith(prefix));
 
     // --- 修改点：针对 ls 和 cd 命令，只显示文件夹 ---
-    if (cmdName === "ls" || cmdName === "cd") {
-      matches = matches.filter((item) => isDir(item, currentDir.value));
-    }
+    // (逻辑已移至 getCompletionItems，此处无需重复过滤，除非需要覆盖默认逻辑)
     // -------------------------------------------
 
     if (matches.length === 0) return;
@@ -297,9 +356,34 @@ export function useTerminal(configContext) {
       state.index = 0;
       command.value = `${cmdName} ${matches[0]}`;
     } else {
-      // 后续按 Tab: 循环切换
-      state.index = (state.index + 1) % matches.length;
-      command.value = `${cmdName} ${matches[state.index]}`;
+      // 后续按 Tab: 循环切换 (这里逻辑已经在顶部被拦截了，但为了安全保留)
+      handleTabNavigate("next");
+    }
+  };
+
+  // 键盘事件处理 (在 App.vue 中调用)
+  const handleKeydown = (e) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      handleTabComplete(e);
+    } else if (e.key === "ArrowUp") {
+      if (tabCompleteState.value.showAll) {
+        e.preventDefault();
+        handleTabNavigate("prev");
+      } else {
+        e.preventDefault();
+        handleHistory("up");
+      }
+    } else if (e.key === "ArrowDown") {
+      if (tabCompleteState.value.showAll) {
+        e.preventDefault();
+        handleTabNavigate("next");
+      } else {
+        e.preventDefault();
+        handleHistory("down");
+      }
+    } else if (e.key === "Enter") {
+       executeCommand();
     }
   };
 
@@ -317,6 +401,7 @@ export function useTerminal(configContext) {
     executeCommand,
     handleHistory,
     handleTabComplete,
+    handleKeydown, // 导出统一的键盘处理
     focusInput,
     isDir, // 导出供模板使用
   };

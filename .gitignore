@@ -38,6 +38,7 @@ posts.json
 
 # Ignore trea folder
 .trea
+.trae/
 
 # Ignore post folder except for specific subfolders
 /post/*
@@ -47,3 +48,5 @@ posts.json
 
 # AI generated documentation
 Ai_document/
+test-report.md
+public/post/Alan/READ_DEV_GUIDE.md

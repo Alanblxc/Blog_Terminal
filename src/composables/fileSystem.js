@@ -1,3 +1,4 @@
+
 import postsData from "../../posts.json";
 
 // ... (保持 articles 初始化和 buildArticles 逻辑不变) ...
@@ -24,7 +25,7 @@ function buildArticles(dirPath, content) {
 buildArticles("/", postsData.posts);
 
 // ---------------------------------------------------------
-// [FIX] 添加缺失的 getDirIcon 导出函数
+// [修复] 添加缺失的 getDirIcon 导出函数
 // ---------------------------------------------------------
 export const getDirIcon = (item) => {
   if (item.type === "dir") {
@@ -98,8 +99,8 @@ export const getCompletionItems = (cmd, currentDir, arg) => {
     if (currentContent && currentContent.type === "dir") {
       let itemTypes = ["dir", "file"]; // 默认
 
-      if (cmd === "cd") itemTypes = ["dir"];
-      else if (cmd === "cat" || cmd === "wget" || cmd === "vi")
+      if (cmd === "cd" || cmd === "ls") itemTypes = ["dir"];
+      else if (cmd === "cat" || cmd === "wget" || cmd === "vi" || cmd === "read")
         itemTypes = ["file"];
 
       candidates = currentContent.content
@@ -109,7 +110,7 @@ export const getCompletionItems = (cmd, currentDir, arg) => {
       // 特殊补全规则
       if (
         currentDir === "/" &&
-        (cmd === "vi" || cmd === "ls" || cmd === "cat" || cmd === "wget")
+        (cmd === "vi" || cmd === "cat" || cmd === "wget" || cmd === "read")
       ) {
         candidates.push("config.toml");
       }

@@ -20,6 +20,15 @@
               "path": "public/post/Alan/desktop/Readme.md"
             }
           ]
+        },
+        {
+          "name": "READ_DEV_GUIDE.md",
+          "type": "file",
+          "icon": "",
+          "title": "READ_DEV_GUIDE",
+          "date": "2026-01-09",
+          "category": "Alan",
+          "path": "public/post/Alan/READ_DEV_GUIDE.md"
         }
       ]
     },

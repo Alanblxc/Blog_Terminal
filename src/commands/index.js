@@ -1,183 +1,176 @@
+
 import { nextTick } from "vue";
 import { marked } from "marked";
-import { resolvePath } from "../composables/utils"; // 导入通用工具
+import { resolvePath } from "../composables/utils";
 import {
   articles,
   getCompletionItems,
   getArticleInfo,
   getDirIcon,
-} from "../composables/fileSystem"; // 导入文件系统函数
-import vi from "./vi"; // 导入复杂命令
+} from "../composables/fileSystem";
+import vi from "./vi";
+import read from "./read";
+import { CommandAPI } from "../composables/CommandAPI";
 
-// 命令模块 - 集中管理所有命令函数
+/**
+ * ==================================================================================
+ * CommandAPI 使用指南
+ * ==================================================================================
+ * 
+ * 所有终端命令都应遵循以下开发模式。使用 CommandAPI 可以简化上下文交互、参数获取和结果输出。
+ * 
+ * 基本结构:
+ * 
+ * const myCommand = async (rawContext, ...args) => {
+ *   // 1. 初始化 API 实例
+ *   const cmd = new CommandAPI(rawContext, args);
+ * 
+ *   // 2. 获取输入
+ *   const arg1 = cmd.args[0]; // 获取第一个参数
+ *   const cwd = cmd.cwd;      // 获取当前目录路径
+ * 
+ *   // 3. 执行逻辑
+ *   if (!arg1) {
+ *     // 4. 输出结果 (支持多种类型)
+ *     cmd.error("Missing argument");
+ *     return;
+ *   }
+ * 
+ *   cmd.info(`Processing ${arg1}...`);
+ *   cmd.success("Done!");
+ *   
+ *   // 高级输出:
+ *   // cmd.print("普通文本");
+ *   // cmd.markdown({ ... }); // 渲染 Markdown
+ *   // cmd.dir(content);      // 渲染文件列表
+ *   // cmd.tree(content);     // 渲染树形结构
+ *   
+ *   // 系统操作:
+ *   // cmd.setCwd("/new/path"); // 切换目录
+ *   // cmd.clear();             // 清屏
+ * };
+ * 
+ * ==================================================================================
+ */
 
-// 辅助函数：向当前对话添加输出
-const addOutput = async (conversation, output, scroll = true) => {
-  if (conversation) {
-    conversation.output.push(output);
-    // 滚动逻辑由外部处理
-  }
-};
-
-// 命令函数定义
-
-// ls 命令 - 支持 ls 文件夹 查看指定文件夹内容
-const ls = async (context, targetDir) => {
-  const { currentDir, conversation } = context;
-  // 使用resolvePath函数处理路径
+// ls 命令
+const ls = async (rawContext, ...args) => {
+  // 初始化 API
+  const cmd = new CommandAPI(rawContext, args);
+  
+  // 获取参数和环境
+  const targetDir = cmd.args[0];
+  const { currentDir } = cmd.raw; // 如需访问底层 context，可使用 cmd.raw
+  
   let targetPath = resolvePath(currentDir, targetDir);
-
   const targetContent = articles[targetPath];
+
   if (targetContent && targetContent.type === "dir") {
-    // 将目录和文件分开，先显示目录，再显示文件
     const dirs = targetContent.content.filter((item) => item.type === "dir");
     const files = targetContent.content.filter((item) => item.type === "file");
 
-    // 分离.md文件和非.md文件
     const mdFiles = files.filter((file) => file.name.endsWith(".md"));
     const otherFiles = files.filter((file) => !file.name.endsWith(".md"));
 
-    // 按时间排序.md文件，最新的在前
+    // 按日期排序 Markdown 文件
     mdFiles.sort((a, b) => {
       const dateA = a.date ? new Date(a.date) : new Date(0);
       const dateB = b.date ? new Date(b.date) : new Date(0);
       return dateB - dateA;
     });
 
-    // 非.md文件按名称排序
+    // 其他文件按名称排序
     otherFiles.sort((a, b) => a.name.localeCompare(b.name));
 
-    // 在根目录添加虚拟的config.toml文件到文件列表中
+    // 如果是根目录，检查并添加虚拟的 config.toml
     if (targetPath === "/") {
-      // 检查是否已经存在config.toml文件
       const hasConfigFile = files.some((file) => file.name === "config.toml");
       if (!hasConfigFile) {
-        // 将虚拟config.toml文件添加到otherFiles数组中
         otherFiles.push({
           type: "file",
           name: "config.toml",
           icon: "",
           path: "/config.toml",
-          isVirtual: true, // 标记为虚拟文件
+          isVirtual: true,
         });
-        // 重新排序otherFiles，确保按名称排序
         otherFiles.sort((a, b) => a.name.localeCompare(b.name));
       }
     }
 
-    // 合并结果：目录在前，.md文件按时间排序，然后是非.md文件按名称排序
     const sortedContent = [...dirs, ...mdFiles, ...otherFiles];
-
-    await addOutput(conversation, {
-      type: "dir",
-      content: sortedContent,
-    });
+    cmd.dir(sortedContent);
   } else {
-    await addOutput(conversation, {
-      type: "error",
-      content: `Directory not found: ${targetDir || currentDir}`,
-    });
+    cmd.error(`未找到目录: ${targetDir || currentDir}`);
   }
 };
 
-// cd 命令 - 重构支持多层嵌套文件夹
-const cd = async (context, dir) => {
-  const { currentDirRef, conversation } = context;
-  if (!dir) {
-    return;
-  }
+// cd 命令
+const cd = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const dir = cmd.args[0];
+  if (!dir) return;
 
-  // 使用resolvePath函数处理路径
-  const targetPath = resolvePath(currentDirRef.value, dir);
-
-  // 检查目标路径是否存在
+  const targetPath = resolvePath(cmd.cwd, dir);
   if (articles[targetPath]) {
-    currentDirRef.value = targetPath;
+    cmd.setCwd(targetPath);
   } else {
-    await addOutput(conversation, {
-      type: "error",
-      content: `Directory not found: ${dir}`,
-    });
+    cmd.error(`未找到目录: ${dir}`);
   }
 };
 
-// viewFile 命令（cat命令的处理函数）
-const viewFile = async (context, fileName) => {
-  const { currentDir, conversation, getArticleInfo, theme } = context;
+// viewFile 命令 (cat)
+const viewFile = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const fileName = cmd.args[0];
+  const { theme } = cmd.raw;
+
   if (!fileName) {
-    await addOutput(conversation, {
-      type: "error",
-      content: "Usage: cat <file.md>",
-    });
+    cmd.error("用法: cat <file.md>");
     return;
   }
 
-  // 特殊处理config.toml文件
-  if (fileName === "config.toml" && currentDir === "/") {
+  // 特殊处理 config.toml
+  if (fileName === "config.toml" && cmd.cwd === "/") {
     try {
-      // 从localStorage获取config.toml内容
-      const content = localStorage.getItem("terminalConfigToml") || "";
-
-      // 创建输出对象，显示原始TOML内容
-      await addOutput(conversation, {
-        type: "output",
-        content: content,
-      });
+      const content = await cmd.readFile(fileName);
+      cmd.print(content || "");
       return;
     } catch (error) {
-      await addOutput(conversation, {
-        type: "error",
-        content: `Error reading config.toml: ${error.message}`,
-      });
+      cmd.error(`读取 config.toml 失败: ${error.message}`);
       return;
     }
   }
 
-  // 获取文章信息
-  const articleInfo = getArticleInfo(fileName, currentDir);
+  const articleInfo = getArticleInfo(fileName, cmd.cwd);
   if (!articleInfo) {
-    await addOutput(conversation, {
-      type: "error",
-      content: `File not found: ${fileName}`,
-    });
+    cmd.error(`未找到文件: ${fileName}`);
     return;
   }
 
   try {
-    // 读取文件内容
     const response = await fetch(articleInfo.path.replace("./", "/"));
-    if (!response.ok) {
-      throw new Error("File not found");
-    }
+    if (!response.ok) throw new Error("File not found");
     const content = await response.text();
-    // 使用marked解析Markdown内容
     const parsedContent = marked(content);
 
-    // 创建新的输出对象
-    const newOutput = {
-      type: "glow",
-      content: {
-        title: articleInfo.title,
-        date: articleInfo.date,
-        category: articleInfo.category,
-        content: parsedContent,
-        rawContent: content, // 保存原始内容，方便主题切换时重新渲染
-      },
-      theme: theme.current.value, // 保存当前主题，用于渲染
-    };
-
-    await addOutput(conversation, newOutput);
-  } catch (error) {
-    await addOutput(conversation, {
-      type: "error",
-      content: `File not found: ${fileName}`,
+    cmd.markdown({
+      title: articleInfo.title,
+      date: articleInfo.date,
+      category: articleInfo.category,
+      content: parsedContent,
+      rawContent: content,
     });
+  } catch (error) {
+    cmd.error(`未找到文件: ${fileName}`);
   }
 };
 
-// tree命令 - 递归显示目录结构
-const tree = async (context) => {
-  const { currentDir, conversation, getDirIcon } = context;
+// tree 命令
+const tree = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const { currentDir } = cmd.raw; 
+
+  // 递归生成树形结构
   const generateTree = (dirPath, indent = "", prefix = "") => {
     const dir = articles[dirPath];
     if (!dir || dir.type !== "dir") return [];
@@ -191,39 +184,29 @@ const tree = async (context) => {
       const newPrefix = isLast ? "└── " : "├── ";
 
       const item = items[i];
-      // 使用getDirIcon函数生成图标，而不是直接访问item.icon
       treeLines.push(`${indent}${newPrefix}${getDirIcon(item)} ${item.name}`);
 
-      // 递归处理子目录
       if (item.type === "dir") {
-        // 使用resolvePath处理路径，确保路径格式正确
         const subDirPath = resolvePath(dirPath, item.name);
-        // 检查目标目录是否存在于articles中
         if (articles[subDirPath]) {
           treeLines.push(...generateTree(subDirPath, newIndent));
         }
       }
     }
-
     return treeLines;
   };
 
-  // 添加根目录
   const treeLines = [`${getDirIcon({ type: "dir" })} .`];
   treeLines.push(...generateTree("/"));
 
-  await addOutput(conversation, {
-    type: "tree",
-    content: treeLines.join("\n"),
-  });
+  cmd.tree(treeLines.join("\n"));
 };
 
 // help 命令
-const help = async (context, ...args) => {
-  const { conversation } = context;
-  const showAll = args.includes("-l");
+const help = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const showAll = cmd.args.includes("-l");
 
-  // 常用命令列表（默认显示）
   const commonHelpText = `用法: <command> [options]
 
 命令列表:
@@ -231,16 +214,17 @@ const help = async (context, ...args) => {
   ls                    列出目录内容
   cd <dir>              切换目录
   cat <file>            查看Markdown文件内容
+  read <file>           全屏阅读器 (支持TOC/搜索)
   tree                  显示目录结构
   help                  显示此帮助信息
   size <num|default>    设置字体大小 (1-26|default)
   font [font-name]      显示当前字体或设置字体 (0xProto Nerd Font|Fira Code|Cascadia Code|JetBrains Mono)
   background [0-1]      显示当前背景设置或设置透明度
   wget <file>           下载文件
+  vi <file>             编辑文件 (config.toml)
 
 💡 提示: 输入 'help -l' 查看所有可用命令`;
 
-  // 完整命令列表（使用 -l 参数时显示）
   const fullHelpText = `终端博客命令帮助
 
 用法: <command> [options]
@@ -250,9 +234,11 @@ const help = async (context, ...args) => {
   ls                    列出目录内容
   cd <dir>              切换目录
   cat <file>            查看Markdown文件内容
+  read <file>           全屏阅读器 (支持TOC/搜索/主题)
   tree                  显示完整目录结构
   find <term>           搜索文章名称
   wget <file>           下载文件
+  vi <file>             编辑文件 (config.toml)
 
 网络命令:
 
@@ -263,14 +249,10 @@ const help = async (context, ...args) => {
 
   size <num|default>    设置字体大小 (1-26|default)
   font [font-name]      显示当前字体或设置字体
-                        可用字体: 0xProto Nerd Font, Fira Code, Cascadia Code, JetBrains Mono
   background            显示当前背景设置
   background <0-1>      设置背景透明度 (0-1之间的数值)
-  background opacity <0-1> 设置背景透明度
-  background image <path>  设置背景图片路径
   theme                 显示当前主题和可用主题
   theme <name>          设置Markdown主题
-                        可用主题: default, dark, light, solarized, dracula
 
 实用命令:
 
@@ -283,212 +265,124 @@ const help = async (context, ...args) => {
 
 💡 提示: 输入命令名称后按Tab键可进行自动补全`;
 
-  const helpText = showAll ? fullHelpText : commonHelpText;
-  await addOutput(conversation, { type: "help", content: helpText });
+  cmd.help(showAll ? fullHelpText : commonHelpText);
 };
 
 // clear 命令
-const clear = async (context) => {
-  const { conversations, showWelcome } = context;
-  conversations.value = [];
-  showWelcome.value = false;
+const clear = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  cmd.clear();
 };
 
 // size 命令
-const size = async (context, size) => {
-  const { conversation, updateTomlConfig } = context;
-  if (size === "default") {
-    // 更新TOML配置中的字体大小为默认值
-    const success = updateTomlConfig({
-      ui: {
-        fontSize: "18",
-      },
-    });
+const size = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const sizeArg = cmd.args[0];
 
+  if (sizeArg === "default") {
+    const success = cmd.updateConfig({
+      ui: { fontSize: "18" },
+    });
     if (success) {
-      await addOutput(conversation, {
-        type: "success",
-        content: "Font size set to default (18px)",
-      });
+      cmd.success("字体大小已重置为默认 (18px)");
     } else {
-      await addOutput(conversation, {
-        type: "error",
-        content: "Failed to update font size. Please try again.",
-      });
+      cmd.error("更新字体大小失败，请重试。");
     }
   } else {
-    // 尝试将size转换为数字
-    const sizeNum = parseInt(size);
-    // 检查是否为1-26之间的有效数字
+    const sizeNum = parseInt(sizeArg);
     if (!isNaN(sizeNum) && sizeNum >= 1 && sizeNum <= 26) {
-      // 更新TOML配置中的字体大小
-      const success = updateTomlConfig({
-        ui: {
-          fontSize: sizeNum.toString(),
-        },
+      const success = cmd.updateConfig({
+        ui: { fontSize: sizeNum.toString() },
       });
-
       if (success) {
-        await addOutput(conversation, {
-          type: "success",
-          content: `Font size set to ${sizeNum}px`,
-        });
+        cmd.success(`字体大小已设置为 ${sizeNum}px`);
       } else {
-        await addOutput(conversation, {
-          type: "error",
-          content: "Failed to update font size. Please try again.",
-        });
+        cmd.error("更新字体大小失败，请重试。");
       }
     } else {
-      await addOutput(conversation, {
-        type: "error",
-        content: "Usage: size <1-26|default>",
-      });
+      cmd.error("用法: size <1-26|default>");
     }
   }
 };
 
 // background 命令
-const background = async (context, ...args) => {
-  const { conversation, background: bg, updateTomlConfig } = context;
+const background = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const { background: bg } = cmd.raw;
+  const argsList = cmd.args;
 
-  if (args.length === 0) {
-    // 显示当前背景设置
-    await addOutput(conversation, {
-      type: "info",
-      content: `Current background settings:
-  Image: ${bg.image.value}
-  Opacity: ${bg.opacity.value}`,
-    });
-  } else if (args.length === 1) {
-    // 只有一个参数时，直接作为透明度处理
-    const opacity = args[0];
+  if (argsList.length === 0) {
+    cmd.info(`当前背景设置:
+  图片: ${bg.image.value}
+  透明度: ${bg.opacity.value}`);
+  } else if (argsList.length === 1) {
+    const opacity = argsList[0];
     const opacityNum = parseFloat(opacity);
     if (!isNaN(opacityNum) && opacityNum >= 0 && opacityNum <= 1) {
-      // 更新TOML配置中的背景透明度
-      const success = updateTomlConfig({
-        background: {
-          opacity: opacityNum.toString(),
-        },
+      const success = cmd.updateConfig({
+        background: { opacity: opacityNum.toString() },
       });
-
       if (success) {
-        await addOutput(conversation, {
-          type: "success",
-          content: `Background opacity set to ${opacity}`,
-        });
+        cmd.success(`背景透明度已设置为 ${opacity}`);
       } else {
-        await addOutput(conversation, {
-          type: "error",
-          content: "Failed to update background opacity. Please try again.",
-        });
+        cmd.error("更新背景透明度失败，请重试。");
       }
     } else {
-      await addOutput(conversation, {
-        type: "error",
-        content:
-          "Usage: background <0-1> | background opacity <0-1> | background image <path>",
-      });
+      cmd.error("用法: background <0-1> | background opacity <0-1> | background image <path>");
     }
-  } else if (args[0] === "opacity") {
-    // 设置背景透明度
-    const opacity = args[1];
+  } else if (argsList[0] === "opacity") {
+    const opacity = argsList[1];
     const opacityNum = parseFloat(opacity);
     if (!isNaN(opacityNum) && opacityNum >= 0 && opacityNum <= 1) {
-      // 更新TOML配置中的背景透明度
-      const success = updateTomlConfig({
-        background: {
-          opacity: opacityNum.toString(),
-        },
+      const success = cmd.updateConfig({
+        background: { opacity: opacityNum.toString() },
       });
-
       if (success) {
-        await addOutput(conversation, {
-          type: "success",
-          content: `Background opacity set to ${opacity}`,
-        });
+        cmd.success(`背景透明度已设置为 ${opacity}`);
       } else {
-        await addOutput(conversation, {
-          type: "error",
-          content: "Failed to update background opacity. Please try again.",
-        });
+        cmd.error("更新背景透明度失败，请重试。");
       }
     } else {
-      await addOutput(conversation, {
-        type: "error",
-        content: "Usage: background <0-1> | background opacity <0-1>",
-      });
+      cmd.error("用法: background <0-1> | background opacity <0-1>");
     }
-  } else if (args[0] === "image") {
-    // 设置背景图片
-    const imagePath = args[1];
+  } else if (argsList[0] === "image") {
+    const imagePath = argsList[1];
     if (!imagePath) {
-      await addOutput(conversation, {
-        type: "error",
-        content: "Usage: background image <path>",
-      });
+      cmd.error("用法: background image <path>");
       return;
     }
-
-    // 验证图片路径格式
     let isValidUrl = false;
     try {
-      // 尝试解析为URL
       new URL(imagePath);
       isValidUrl = true;
     } catch {
-      // 不是URL，可能是本地路径
       isValidUrl = false;
     }
-
-    // 本地路径需要以/开头
     if (!isValidUrl && !imagePath.startsWith("/")) {
-      await addOutput(conversation, {
-        type: "error",
-        content: "Local image path must start with /",
-      });
+      cmd.error("本地图片路径必须以 / 开头");
       return;
     }
-
-    // 更新TOML配置中的背景图片
-    const success = updateTomlConfig({
-      background: {
-        image: imagePath,
-      },
+    const success = cmd.updateConfig({
+      background: { image: imagePath },
     });
-
     if (success) {
-      await addOutput(conversation, {
-        type: "success",
-        content: `Background image set to ${imagePath}`,
-      });
-
-      // 显示当前背景设置，让用户确认修改
-      await addOutput(conversation, {
-        type: "info",
-        content: `Current background settings:
-  Image: ${bg.image.value}
-  Opacity: ${bg.opacity.value}`,
-      });
+      cmd.success(`背景图片已设置为 ${imagePath}`);
+      cmd.info(`当前背景设置:
+  图片: ${bg.image.value}
+  透明度: ${bg.opacity.value}`);
     } else {
-      await addOutput(conversation, {
-        type: "error",
-        content: "Failed to update background image. Please try again.",
-      });
+      cmd.error("更新背景图片失败，请重试。");
     }
   } else {
-    await addOutput(conversation, {
-      type: "error",
-      content:
-        "Usage: background <0-1> | background opacity <0-1> | background image <path>",
-    });
+    cmd.error("用法: background <0-1> | background opacity <0-1> | background image <path>");
   }
 };
 
 // ipconfig 命令
-const ipconfig = async (context) => {
-  const { conversation } = context;
-  // 辅助函数：获取本地IP
+const ipconfig = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  
+  // 获取本地 IP (通过 WebRTC)
   const getLocalIP = () => {
     return new Promise((resolve) => {
       const RTCPeerConnection =
@@ -499,22 +393,16 @@ const ipconfig = async (context) => {
         resolve(null);
         return;
       }
-
       const pc = new RTCPeerConnection({ iceServers: [] });
       const noop = () => {};
-
-      // 注册超时，如果2秒没拿到，就放弃
       const timeoutId = setTimeout(() => {
         pc.close();
         resolve(null);
       }, 2000);
-
       pc.onicecandidate = (ice) => {
         if (ice && ice.candidate && ice.candidate.candidate) {
-          // 使用正则提取 IP
           const myIPRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3})/;
           const match = myIPRegex.exec(ice.candidate.candidate);
-
           if (match) {
             clearTimeout(timeoutId);
             pc.onicecandidate = noop;
@@ -523,8 +411,6 @@ const ipconfig = async (context) => {
           }
         }
       };
-
-      // 建立伪连接通道触发 candidate 收集
       pc.createDataChannel("");
       pc.createOffer()
         .then((sdp) => pc.setLocalDescription(sdp, noop, noop))
@@ -532,346 +418,292 @@ const ipconfig = async (context) => {
     });
   };
 
-  // 提示正在加载
-  await addOutput(conversation, {
-    type: "info",
-    content: "Checking network configuration...",
-  });
+  cmd.info("正在检查网络配置...");
+  await cmd.scroll();
 
   try {
-    // 1. 并行获取公网IP和局域网IP
+    // 1. 获取公网 IP
     const publicIpPromise = fetch("https://api.ipify.org?format=json")
       .then((res) => res.json())
       .then((data) => data.ip)
       .catch(() => "Unknown");
+      
+    // 2. 获取 DNS 信息
+    const dnsInfoPromise = fetch("https://edns.ip-api.com/json")
+      .then((res) => res.json())
+      .then((data) => data.dns)
+      .catch(() => null);
 
-    // 使用上面的 WebRTC 函数获取局域网IP
+    // 3. 获取本地 IP
     const localIpPromise = getLocalIP();
 
-    const [publicIp, realLocalIp] = await Promise.all([
+    const [publicIp, dnsData, realLocalIp] = await Promise.all([
       publicIpPromise,
+      dnsInfoPromise,
       localIpPromise,
     ]);
 
-    // 如果 WebRTC 被屏蔽(返回null)，则生成一个模拟的 IP
     const displayLocalIp =
       realLocalIp ||
-      `192.168.1.${Math.floor(Math.random() * 200 + 20)} (Simulated)`;
+      `192.168.1.${Math.floor(Math.random() * 200 + 20)} (模拟)`;
     const isSimulated = !realLocalIp;
+    
+    const dnsSuffix = dnsData ? dnsData.geo.split(' ').pop().toLowerCase() + ".local" : "localdomain";
+    const dnsDisplay = dnsData 
+      ? `${dnsData.ip} (${dnsData.geo})`
+      : "192.168.1.1 (模拟)";
 
     const info = [
-      `\nWindows IP Configuration\n`,
-      `Ethernet adapter Ethernet 0:`,
-      `   Connection-specific DNS Suffix  . : localdomain`,
-      `   Link-local IPv6 Address . . . . . : fe80::${Math.floor(
+      `\nWindows IP 配置\n`,
+      `以太网适配器 Ethernet 0:`,
+      `   连接特定的 DNS 后缀 . . . . . . . : ${dnsSuffix}`,
+      `   本地链接 IPv6 地址. . . . . . . . : fe80::${Math.floor(
         Math.random() * 9999
       )}%11`,
-      `   IPv4 Address. . . . . . . . . . . : ${displayLocalIp} ${
+      `   IPv4 地址 . . . . . . . . . . . . : ${displayLocalIp} ${
         isSimulated
-          ? "<- Browser privacy blocked real IP"
-          : "<- Detected via WebRTC>"
+          ? "<- 浏览器隐私策略已屏蔽真实 IP"
+          : "<- 通过 WebRTC 检测>"
       }`,
-      `   Subnet Mask . . . . . . . . . . . : 255.255.255.0`,
-      `   Default Gateway . . . . . . . . . : 192.168.1.1`,
-      `\nWide Area Network (WAN) stats:`,
-      `   Public IP Address . . . . . . . . : ${publicIp}`,
+      `   子网掩码  . . . . . . . . . . . . : 255.255.255.0`,
+      `   默认网关. . . . . . . . . . . . . : 192.168.1.1`,
+      `   DNS 服务器  . . . . . . . . . . . : ${dnsDisplay}`,
+      `\n广域网 (WAN) 统计:`,
+      `   公网 IP 地址. . . . . . . . . . . : ${publicIp}`,
     ];
 
-    await addOutput(conversation, {
-      type: "success",
-      content: info.join("\n"),
-    });
+    cmd.success(info.join("\n"));
+    await cmd.scroll();
   } catch (e) {
-    await addOutput(conversation, {
-      type: "error",
-      content: "Error reading network configuration.",
-    });
+    cmd.error("读取网络配置失败。");
   }
 };
 
 // ping 命令
-const ping = async (context, target = "localhost") => {
-  const { conversation } = context;
-  // 辅助函数：强制等待渲染完成
-  const updateView = async (delay = 100) => {
-    await nextTick();
-    await new Promise((r) => setTimeout(r, delay));
-  };
-
-  if (!target) {
-    await addOutput(conversation, {
-      type: "error",
-      content: "Usage: ping <domain or ip>",
-    });
-    return;
-  }
-
-  // URL 格式化处理
-  let url = target.trim();
-  url = url.replace(/\/$/, "");
-
-  // 补全协议
+const ping = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const target = cmd.getArg(0, "localhost");
+  
+  let url = target.trim().replace(/\/$/, "");
   if (!/^https?:\/\//i.test(url)) {
     url = `https://${url}`;
   }
-
   const displayUrl = url.replace(/^https?:\/\//, "");
 
-  // 统计数据容器
-  const stats = {
-    sent: 0,
-    received: 0,
-    times: [],
-  };
+  const stats = { sent: 0, received: 0, times: [] };
 
-  // 输出头部
-  await addOutput(conversation, {
-    type: "info",
-    content: `Pinging ${displayUrl} [TCP/HTTP Simulation] with 32 bytes of data:`,
-  });
-  await updateView(500);
+  cmd.info(`正在 Ping ${displayUrl} [TCP/HTTP 模拟] 具有 32 字节的数据:`);
+  await cmd.scroll();
+  await cmd.sleep(500);
 
-  // 循环发送 4 次请求
   for (let i = 0; i < 4; i++) {
     stats.sent++;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
     const start = performance.now();
-    let outputLine;
 
     try {
-      // 发起请求
       await fetch(url, {
         mode: "no-cors",
         cache: "no-store",
         signal: controller.signal,
       });
-
-      // 计算时间
       const end = performance.now();
       clearTimeout(timeoutId);
-
       const time = (end - start).toFixed(0);
       stats.times.push(parseInt(time));
       stats.received++;
-
-      outputLine = {
-        type: "success",
-        content: `Reply from ${displayUrl}: time=${time}ms protocol=HTTP/HTTPS`,
-      };
+      
+      cmd.success(`来自 ${displayUrl} 的回复: 时间=${time}ms 协议=HTTP/HTTPS`);
     } catch (err) {
       clearTimeout(timeoutId);
-      let errorMsg = "Request timed out.";
+      let errorMsg = "请求超时。";
       if (err.name !== "AbortError") {
-        errorMsg = "Destination host unreachable (Network/CORS Error).";
+        errorMsg = "无法访问目标主机 (网络/CORS 错误)。";
       }
-      outputLine = {
-        type: "error",
-        content: errorMsg,
-      };
+      cmd.error(errorMsg);
     }
-
-    // 立即输出单行结果
-    await addOutput(conversation, outputLine);
-    await updateView(100);
-
-    // 模拟 Ping 的间隔 (1秒)，只有前3次需要额外等待
+    
+    // 关键：每次输出后立即滚动并等待
+    await cmd.scroll();
+    
     if (i < 3) {
-      await new Promise((r) => setTimeout(r, 1000));
+      await cmd.sleep(1000);
     }
   }
 
-  // 计算并输出统计结果
-  await addOutput(conversation, { type: "info", content: "" });
-  await updateView(200);
+  cmd.print("");
+  await cmd.scroll();
+  await cmd.sleep(200);
 
   const lost = stats.sent - stats.received;
   const lostPercent = Math.round((lost / stats.sent) * 100);
-
-  let min = 0,
-    max = 0,
-    avg = 0;
+  let min = 0, max = 0, avg = 0;
   if (stats.times.length > 0) {
     min = Math.min(...stats.times);
     max = Math.max(...stats.times);
-    avg = Math.round(
-      stats.times.reduce((a, b) => a + b, 0) / stats.times.length
-    );
+    avg = Math.round(stats.times.reduce((a, b) => a + b, 0) / stats.times.length);
   }
 
-  // 准备统计信息的行
   const statsLines = [
-    `Ping statistics for ${displayUrl}:`,
-    `    Packets: Sent = ${stats.sent}, Received = ${stats.received}, Lost = ${lost} (${lostPercent}% loss),`,
-    `Approximate round trip times in milli-seconds:`,
-    `    Minimum = ${min}ms, Maximum = ${max}ms, Average = ${avg}ms`,
+    `${displayUrl} 的 Ping 统计信息:`,
+    `    数据包: 已发送 = ${stats.sent}，已接收 = ${stats.received}，丢失 = ${lost} (${lostPercent}% 丢失)，`,
+    `往返行程的估计时间(以毫秒为单位):`,
+    `    最短 = ${min}ms，最长 = ${max}ms，平均 = ${avg}ms`,
   ];
 
-  // 逐行输出统计信息
-  for (const lineContent of statsLines) {
-    await addOutput(conversation, {
-      type: "info",
-      content: lineContent,
-    });
-    await updateView(150);
+  for (const line of statsLines) {
+    cmd.info(line);
+    await cmd.scroll();
+    await cmd.sleep(150);
   }
 };
 
 // theme 命令
-const theme = async (context, ...args) => {
-  const { conversation, theme, updateTomlConfig } = context;
-  if (args.length === 0) {
-    // 显示当前主题和可用主题
-    await addOutput(conversation, {
-      type: "info",
-      content: `Current theme: ${
-        theme.current.value
-      }\nAvailable themes: ${theme.available.value.join(", ")}`,
-    });
-  } else if (args.length === 1) {
-    const requestedTheme = args[0];
-    if (theme.available.value.includes(requestedTheme)) {
-      // 更新TOML配置中的主题
-      const success = updateTomlConfig({
-        theme: {
-          current: requestedTheme,
-        },
-      });
+const theme = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const { theme: themeConfig } = cmd.raw;
+  const argsList = cmd.args;
 
+  // 扩展: 支持 read 子命令
+  if (argsList[0] === "read") {
+     const readThemeName = argsList[1];
+     if (!readThemeName) {
+        // 显示当前 read theme
+        const currentReadTheme = cmd.raw.config?.value?.read_theme?.current || "default";
+        const availableReadThemes = cmd.raw.config?.value?.read_theme?.available || ["default"];
+        cmd.info(`当前阅读器主题: ${currentReadTheme}\n可用阅读器主题: ${availableReadThemes.join(", ")}`);
+        return;
+     }
+     
+     const availableReadThemes = cmd.raw.config?.value?.read_theme?.available || ["default"];
+     if (availableReadThemes.includes(readThemeName)) {
+        const success = cmd.updateConfig({
+          read_theme: { current: readThemeName },
+        });
+        if (success) {
+          cmd.success(`阅读器主题已设置为 ${readThemeName}`);
+        } else {
+          cmd.error("更新阅读器主题失败。");
+        }
+     } else {
+        cmd.error(`未找到阅读器主题: ${readThemeName}\n可用主题: ${availableReadThemes.join(", ")}`);
+     }
+     return;
+  }
+
+  if (argsList.length === 0) {
+    cmd.info(`当前主题: ${themeConfig.current.value}\n可用主题: ${themeConfig.available.value.join(", ")}`);
+  } else if (argsList.length === 1) {
+    const requestedTheme = argsList[0];
+    if (themeConfig.available.value.includes(requestedTheme)) {
+      const success = cmd.updateConfig({
+        theme: { current: requestedTheme },
+      });
       if (success) {
-        await addOutput(conversation, {
-          type: "success",
-          content: `Theme set to ${requestedTheme}`,
-        });
+        cmd.success(`主题已设置为 ${requestedTheme}`);
       } else {
-        await addOutput(conversation, {
-          type: "error",
-          content: `Failed to update theme. Please try again.`,
-        });
+        cmd.error("更新主题失败，请重试。");
       }
     } else {
-      await addOutput(conversation, {
-        type: "error",
-        content: `Theme not found: ${requestedTheme}\nAvailable themes: ${theme.available.value.join(
-          ", "
-        )}`,
-      });
+      cmd.error(`未找到主题: ${requestedTheme}\n可用主题: ${themeConfig.available.value.join(", ")}`);
     }
   }
 };
 
 // echo 命令
-const echo = async (context, ...args) => {
-  const { conversation } = context;
-  const message = args.join(" ");
-  await addOutput(conversation, {
-    type: "output",
-    content: message,
-  });
+const echo = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const message = cmd.args.join(" "); // 拼接所有参数
+  
+  // 检查是否是文件
+  const fileName = cmd.args[0];
+  if (cmd.args.length === 1 && fileName) {
+    const { articles } = cmd.raw;
+    const { currentDir } = cmd.raw;
+    
+    // 尝试在当前目录查找文件
+    let fileContent = null;
+    try {
+      // 使用 cmd.readFile 统一处理所有文件读取逻辑
+      fileContent = await cmd.readFile(fileName);
+    } catch (e) {}
+    
+    if (fileContent !== null) {
+      cmd.print(fileContent);
+      return;
+    }
+  }
+
+  cmd.print(message); // 输出普通文本
 };
 
-// font 命令 - 修改字体
-const font = async (context, ...args) => {
-  const { conversation, updateTomlConfig } = context;
+// font 命令
+const font = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
   const availableFonts = [
     "0xProto Nerd Font",
     "Fira Code",
     "Cascadia Code",
     "JetBrains Mono",
   ];
-  const defaultFont = "Cascadia Code"; // 默认字体，避免文件图标乱码
+  const defaultFont = "Cascadia Code";
+  const { font: fontConfig } = cmd.raw;
+  const argsList = cmd.args;
 
-  if (args.length === 0) {
-    // 显示当前字体设置和可用字体 - 从上下文中获取currentFont
-    const { font } = context;
-    await addOutput(conversation, {
-      type: "info",
-      content: `Current font: ${
-        font.family.value
-      }\nAvailable fonts: ${availableFonts.join(", ")}, default`,
-    });
+  if (argsList.length === 0) {
+    cmd.info(`当前字体: ${fontConfig.family.value}\n可用字体: ${availableFonts.join(", ")}, default`);
   } else {
-    const fontName = args.join(" ");
+    const fontName = argsList.join(" ");
     if (availableFonts.includes(fontName)) {
-      // 更新TOML配置中的字体
-      const success = updateTomlConfig({
-        ui: {
-          fontFamily: fontName,
-        },
+      const success = cmd.updateConfig({
+        ui: { fontFamily: fontName },
       });
-
       if (success) {
-        await addOutput(conversation, {
-          type: "success",
-          content: `Font set to ${fontName}`,
-        });
+        cmd.success(`字体已设置为 ${fontName}`);
       } else {
-        await addOutput(conversation, {
-          type: "error",
-          content: "Failed to update font. Please try again.",
-        });
+        cmd.error("更新字体失败，请重试。");
       }
     } else if (fontName === "default") {
-      // 切换回默认字体
-      const success = updateTomlConfig({
-        ui: {
-          fontFamily: defaultFont,
-        },
+      const success = cmd.updateConfig({
+        ui: { fontFamily: defaultFont },
       });
-
       if (success) {
-        await addOutput(conversation, {
-          type: "success",
-          content: `Font set to default (${defaultFont})`,
-        });
+        cmd.success(`字体已设置为默认 (${defaultFont})`);
       } else {
-        await addOutput(conversation, {
-          type: "error",
-          content: "Failed to update font. Please try again.",
-        });
+        cmd.error("更新字体失败，请重试。");
       }
     } else {
-      await addOutput(conversation, {
-        type: "error",
-        content: `Font not found: ${fontName}\nAvailable fonts: ${availableFonts.join(
-          ", "
-        )}, default`,
-      });
+      cmd.error(`未找到字体: ${fontName}\n可用字体: ${availableFonts.join(", ")}, default`);
     }
   }
 };
 
-// test-config 命令 - 测试配置是否正确加载
-const testConfig = async (context) => {
-  const { conversation, user, fontSize, background, theme } = context;
-  await addOutput(conversation, {
-    type: "info",
-    content: `Current configuration:\n  User: ${user.value}\n  Font Size: ${
-      fontSize.value
-    }\n  Background:\n    Image: ${background.image.value}\n    Opacity: ${
-      background.opacity.value
-    }\n  Theme: ${
-      theme.current.value
-    }\n  Available Themes: ${theme.available.value.join(", ")}`,
-  });
+// test-config 命令
+const testConfig = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const { user, fontSize, background, theme } = cmd.raw; 
+  
+  cmd.info(`当前配置:\n  用户: ${user.value}\n  字体大小: ${
+    fontSize.value
+  }\n  背景:\n    图片: ${background.image.value}\n    透明度: ${
+    background.opacity.value
+  }\n  主题: ${
+    theme.current.value
+  }\n  可用主题: ${theme.available.value.join(", ")}`);
 };
 
-// find 命令 - 搜索文章
-const find = async (context, ...args) => {
-  const { conversation } = context;
-  const searchTerm = args.join(" ");
+// find 命令
+const find = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const searchTerm = cmd.args.join(" ");
 
   if (!searchTerm) {
-    await addOutput(conversation, {
-      type: "error",
-      content: "Usage: find <article_name>",
-    });
+    cmd.error("用法: find <article_name>");
     return;
   }
 
-  // 递归搜索所有文章
   const searchResults = [];
-
   const searchInDir = (dirPath, content) => {
     content.forEach((item) => {
       if (
@@ -888,148 +720,80 @@ const find = async (context, ...args) => {
     });
   };
 
-  // 从根目录开始搜索
   searchInDir("/", articles["/"].content);
 
   if (searchResults.length === 0) {
-    await addOutput(conversation, {
-      type: "info",
-      content: `No articles found matching "${searchTerm}"`,
-    });
+    cmd.info(`未找到匹配 "${searchTerm}" 的文章`);
   } else {
     const resultContent = [
-      `Found ${searchResults.length} article(s) matching "${searchTerm}":`,
+      `找到 ${searchResults.length} 篇匹配 "${searchTerm}" 的文章:`,
       "",
     ];
-
     searchResults.forEach((result) => {
       resultContent.push(
         `${result.icon} ${result.path}/${result.name} (${result.category})`
       );
     });
-
-    await addOutput(conversation, {
-      type: "info",
-      content: resultContent.join("\n"),
-    });
+    cmd.info(resultContent.join("\n"));
   }
 };
 
-// wget 命令 - 使用跳转来实现下载
-const getFileUrlFromPath = (filePath) => {
-  // 递归查找文件的URL
-  const findFile = (content) => {
-    for (const item of content) {
-      if (item.type === "file" && item.name === filePath) {
-        return item.url;
-      }
-      if (item.type === "dir" && item.content) {
-        const found = findFile(item.content);
-        if (found) {
-          return found;
-        }
-      }
-    }
-    return null;
-  };
+// wget 命令
+const wget = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
+  const fileName = cmd.args[0];
 
-  // 从根目录开始查找
-  const rootContent = articles["/"].content;
-  return findFile(rootContent);
-};
-
-const wget = async (context, ...args) => {
-  const { conversation, getArticleInfo } = context;
-  if (args.length === 0) {
-    await addOutput(conversation, {
-      type: "error",
-      content: "Usage: wget <file_name>",
-    });
+  if (!fileName) {
+    cmd.error("用法: wget <file_name>");
     return;
   }
 
-  const fileName = args[0];
-
-  // 特殊处理config.toml文件
-  if (fileName === "config.toml") {
+  if (fileName === "config.toml" && cmd.cwd === "/") {
     try {
-      // 从localStorage获取config.toml内容
-      const content = localStorage.getItem("terminalConfigToml") || "";
-
-      // 创建Blob对象
-      const blob = new Blob([content], { type: "text/toml" });
-
-      // 创建下载链接
+      const content = await cmd.readFile(fileName);
+      const blob = new Blob([content || ""], { type: "text/toml" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = "config.toml";
-
-      // 触发下载
       document.body.appendChild(a);
       a.click();
-
-      // 清理
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      await addOutput(conversation, {
-        type: "success",
-        content: `Starting download: ${fileName}`,
-      });
-      await addOutput(conversation, {
-        type: "info",
-        content: `Downloading config.toml from localStorage`,
-      });
+      cmd.success(`开始下载: ${fileName}`);
+      cmd.info(`正在从系统配置下载 config.toml`);
       return;
     } catch (error) {
-      await addOutput(conversation, {
-        type: "error",
-        content: `Error downloading config.toml: ${error.message}`,
-      });
+      cmd.error(`下载 config.toml 失败: ${error.message}`);
       return;
     }
   }
 
-  // 使用getArticleInfo函数查找文件（支持整个文件系统查找）
   const file = getArticleInfo(fileName, "/");
-
   let fileUrl = null;
 
   if (file) {
-    // 如果文件有URL属性，直接使用
     if (file.url) {
       fileUrl = file.url;
-    }
-    // 如果是md文件且没有URL，使用文件的path属性或构建默认路径
-    else if (fileName.endsWith(".md")) {
+    } else if (fileName.endsWith(".md")) {
       fileUrl = file.path || `/post/${fileName}`;
     }
   }
 
   if (fileUrl) {
-    // 在新标签页中打开下载链接，不覆盖当前页面
     window.open(fileUrl, "_blank");
-    await addOutput(conversation, {
-      type: "success",
-      content: `Starting download: ${fileName}`,
-    });
-    await addOutput(conversation, {
-      type: "info",
-      content: `Downloading from: ${fileUrl}`,
-    });
+    cmd.success(`开始下载: ${fileName}`);
+    cmd.info(`正在下载: ${fileUrl}`);
   } else {
-    await addOutput(conversation, {
-      type: "error",
-      content: `File not found: ${fileName}`,
-    });
+    cmd.error(`未找到文件: ${fileName}`);
   }
 };
 
-// clear config 命令 - 清除所有样式设置和历史命令
-const clearConfig = async (context, ...args) => {
+// clear-config 命令
+const clearConfig = async (rawContext, ...args) => {
+  const cmd = new CommandAPI(rawContext, args);
   const {
-    conversation,
     fontSize,
     font,
     background,
@@ -1037,70 +801,35 @@ const clearConfig = async (context, ...args) => {
     uiStyles,
     conversations,
     clearHistory,
-  } = context;
+  } = cmd.raw;
 
-  // 清除localStorage中的设置、历史命令和缓存的TOML配置
   localStorage.removeItem("terminalSettings");
   localStorage.removeItem("terminalHistory");
   localStorage.removeItem("terminalConfigToml");
 
-  // 重置应用程序状态
-  // 重置字体大小
-  if (fontSize) {
-    fontSize.value = "18"; // 恢复默认字体大小，匹配config.toml中的设置
-  }
-
-  // 重置字体
-  if (font && font.family) {
-    font.family.value = "Cascadia Code"; // 恢复默认字体
-  }
-
-  // 重置背景
+  if (fontSize) fontSize.value = "18";
+  if (font && font.family) font.family.value = "Cascadia Code";
   if (background) {
-    if (background.image) {
-      background.image.value = "/background.jpg"; // 恢复默认背景图片
-    }
-    if (background.opacity) {
-      background.opacity.value = 0.9; // 恢复默认背景透明度
-    }
+    if (background.image) background.image.value = "/background.jpg";
+    if (background.opacity) background.opacity.value = 0.9;
   }
-
-  // 重置主题 - 使用uiStyles而不是只读的computed属性
   if (uiStyles && uiStyles.value && uiStyles.value.theme) {
-    uiStyles.value.theme.current = "default"; // 恢复默认主题
+    uiStyles.value.theme.current = "default";
   } else if (theme && theme.current) {
-    // 兼容旧代码，尝试直接修改theme.current.value
     try {
       theme.current.value = "default";
-    } catch (e) {
-      // 如果修改失败，忽略错误
-    }
+    } catch (e) {}
   }
 
-  // 重置历史命令
-  if (clearHistory) {
-    clearHistory(); // 调用App.vue中定义的清除历史命令函数
-  }
+  if (clearHistory) clearHistory();
 
-  // 显示成功信息
-  await addOutput(conversation, {
-    type: "success",
-    content: "All configuration and history have been cleared!",
-  });
-
-  // 清空对话历史
+  cmd.success("所有配置和历史记录已清除！");
   if (conversations && conversations.value) {
     conversations.value = [];
   }
-
-  // 不再需要提示用户刷新页面，因为状态已经立即更新
-  await addOutput(conversation, {
-    type: "info",
-    content: "All settings have been reset to default values.",
-  });
+  cmd.info("所有设置已重置为默认值。");
 };
 
-// 命令映射
 export const commands = {
   ls,
   cd,
@@ -1120,7 +849,7 @@ export const commands = {
   wget,
   "clear-config": clearConfig,
   vi,
+  read,
 };
 
-// 默认导出，方便更优雅的导入
 export default commands;

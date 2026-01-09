@@ -1,3 +1,4 @@
+
 import { ref, computed, watch } from "vue";
 import { parse, stringify } from "@iarna/toml";
 import { deepMerge } from "./utils";
@@ -62,6 +63,34 @@ const defaultConfig = {
     available: ["default", "dark", "light", "solarized", "dracula"],
     default: { prompt: "#3b82f6", directory: "#60a5fa", file: "#fbbf24" },
   },
+  read_theme: {
+    current: "default",
+    available: ["default", "light", "eye_care"],
+    default: {
+      background: "#0d1117",
+      text: "#c9d1d9",
+      accent: "#58a6ff",
+      codeBackground: "#161b22",
+      tocHover: "rgba(56, 139, 253, 0.15)",
+      borderColor: "#30363d"
+    },
+    light: {
+      background: "#ffffff",
+      text: "#24292f",
+      accent: "#0969da",
+      codeBackground: "#f6f8fa",
+      tocHover: "#ebf0f4",
+      borderColor: "#d0d7de"
+    },
+    eye_care: {
+      background: "#f5f5dc", // 米色/奶油色
+      text: "#4a4a4a",
+      accent: "#8b4513",
+      codeBackground: "#e8e8d0",
+      tocHover: "#e0e0c0",
+      borderColor: "#dcdcaa"
+    }
+  },
 };
 
 export function useConfig() {
@@ -85,6 +114,15 @@ export function useConfig() {
     colors: computed(
       () => config.value.theme[config.value.theme.current] || {}
     ),
+  };
+
+  const readTheme = {
+    current: computed(() => config.value.read_theme?.current || "default"),
+    available: computed(() => config.value.read_theme?.available || ["default"]),
+    colors: computed(() => {
+       const current = config.value.read_theme?.current || "default";
+       return config.value.read_theme?.[current] || defaultConfig.read_theme.default;
+    }),
   };
 
   // 巨大的样式计算
@@ -191,6 +229,7 @@ export function useConfig() {
     font,
     background,
     theme,
+    readTheme,
     asciiArt,
     welcome,
     loadConfig,

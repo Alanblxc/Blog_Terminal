@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
+    "katex": "^0.16.27",
     "marked": "^17.0.1",
+    "mermaid": "^11.12.2",
+    "playwright": "^1.57.0",
     "vue": "^3.4.21"
   },
   "devDependencies": {
