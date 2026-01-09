@@ -1,9 +1,12 @@
-/* 使用系统默认的等宽字体栈 */
+/* 导入Nerd Font webfont */
+@import url("https://www.nerdfonts.com/assets/css/webfont.css");
+
+/* 使用Nerd Font字体栈 */
 :root {
   /* 字体变量 */
-  --font-stack: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
-    "Segoe UI Emoji", "Cascadia Code", "Consolas", "Monaco", "Courier New",
-    Courier, monospace;
+  --font-stack: "NerdFontsSymbols Nerd Font", "0xProto Nerd Font",
+    "Roboto Mono Nerd Font", "Segoe UI Symbol", "Segoe UI Emoji",
+    "Cascadia Code", "Consolas", "Monaco", "Courier New", Courier, monospace;
 
   /* 颜色变量 */
   --bg-color: rgba(0, 0, 0, 0.9);
@@ -240,12 +243,14 @@ input::placeholder {
 /* Directory Output */
 .dir-output {
   margin-left: 20px;
+  font-family: var(--font-stack);
 }
 
 .dir-line {
   margin-bottom: 5px;
   display: flex;
   align-items: center;
+  font-family: var(--font-stack);
 }
 
 .dir-item {
@@ -254,6 +259,7 @@ input::placeholder {
   text-decoration: none;
   margin-right: 15px;
   font-weight: 500;
+  font-family: var(--font-stack);
 }
 
 .dir-item:hover {
@@ -264,6 +270,7 @@ input::placeholder {
 .file-item {
   color: #fbbf24;
   margin-right: 15px;
+  font-family: var(--font-stack);
 }
 
 /* 目录图标颜色 */

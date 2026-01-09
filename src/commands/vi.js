@@ -1,5 +1,5 @@
 // src/commands/vi.js
-import { escapeHtml } from "../js/utils"; // 复用工具函数
+import { escapeHtml } from "../composables/utils"; // 复用工具函数
 
 // 辅助函数：向当前对话添加输出
 const addOutput = async (conversation, output) => {

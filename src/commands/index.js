@@ -1,7 +1,11 @@
 import { nextTick } from "vue";
 import { marked } from "marked";
-import { resolvePath } from "../js/utils"; // 导入通用工具
-import { articles, getCompletionItems, getArticleInfo } from "../js/fileSystem"; // 导入文件系统函数
+import { resolvePath } from "../composables/utils"; // 导入通用工具
+import {
+  articles,
+  getCompletionItems,
+  getArticleInfo,
+} from "../composables/fileSystem"; // 导入文件系统函数
 import vi from "./vi"; // 导入复杂命令
 
 // 命令模块 - 集中管理所有命令函数

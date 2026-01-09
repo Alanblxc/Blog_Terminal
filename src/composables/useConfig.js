@@ -1,0 +1,199 @@
+import { ref, computed, watch } from "vue";
+import { parse, stringify } from "@iarna/toml";
+import { deepMerge } from "./utils";
+
+const defaultConfig = {
+  app: { user: "Alan" },
+  welcome: {
+    title: "Terminal Blog",
+    welcomeMsg: "Loading...",
+    helpMsg: "Type 'help'",
+  },
+  ascii: { art: "" },
+  ui: {
+    fontSize: "18",
+    fontFamily: "Consolas, Monaco, 'Courier New', monospace",
+    infoBar: {
+      backgroundColor: "transparent",
+      textColor: "#e2e8f0",
+      borderColor: "transparent",
+      height: "24px",
+      padding: "0 10px",
+      leftTemplate: "{user} on {dayOfWeek} at {time}",
+      rightTemplate: "{latency}  MEM: {mem}% ({memUsage}/{memTotal}GB)",
+      colors: {
+        username: "#ffbebc",
+        dayOfWeek: "#bc93ff",
+        commandTime: "#bc93ff",
+        latency: "#a9ffb4",
+        cpu: "#ce9178",
+        mem: "#a9ffb4",
+      },
+    },
+    commandLine: {
+      promptSymbol: "$",
+      promptSymbolColor: "#ec4899",
+      boldPrompt: false,
+      italicPrompt: false,
+      underlinePrompt: false,
+      colors: {
+        prompt: "#3b82f6",
+        directory: "#60a5fa",
+        file: "#fbbf24",
+        command: "#ffffff",
+        error: "#ff0000",
+        success: "#00ff00",
+        warning: "#ffff00",
+        info: "#00ffff",
+      },
+      output: {
+        dirItem: "#60a5fa",
+        fileItem: "#fbbf24",
+        error: "#ff0000",
+        help: "#a9ffb4",
+        listItem: "#ffffff",
+        treeLine: "#6b7280",
+      },
+    },
+  },
+  background: { image: "/background.jpg", opacity: "0.9" },
+  theme: {
+    current: "default",
+    available: ["default", "dark", "light", "solarized", "dracula"],
+    default: { prompt: "#3b82f6", directory: "#60a5fa", file: "#fbbf24" },
+  },
+};
+
+export function useConfig() {
+  const config = ref(JSON.parse(JSON.stringify(defaultConfig)));
+
+  // 基础计算属性
+  const fontSize = computed(() => config.value.ui.fontSize);
+  const font = {
+    family: computed(() => config.value.ui.fontFamily || "Cascadia Code"),
+  };
+  const background = {
+    image: computed(() => config.value.background.image),
+    opacity: computed(() => parseFloat(config.value.background.opacity)),
+  };
+  const asciiArt = computed(() => config.value.ascii?.art || "");
+  const welcome = computed(() => config.value.welcome || defaultConfig.welcome);
+
+  const theme = {
+    current: computed(() => config.value.theme.current),
+    available: computed(() => config.value.theme.available),
+    colors: computed(
+      () => config.value.theme[config.value.theme.current] || {}
+    ),
+  };
+
+  // 巨大的样式计算
+  const uiStyles = computed(() => {
+    const currentTheme = theme.current.value;
+    const themeColors = config.value.theme[currentTheme] || {};
+    const ui = config.value.ui || defaultConfig.ui;
+
+    return {
+      infoBar: {
+        ...defaultConfig.ui.infoBar,
+        ...ui.infoBar,
+        colors: { ...defaultConfig.ui.infoBar.colors, ...ui.infoBar?.colors },
+      },
+      commandLine: {
+        ...defaultConfig.ui.commandLine,
+        ...ui.commandLine,
+        prompt:
+          ui.commandLine?.colors?.prompt || themeColors.prompt || "#3b82f6",
+        directory:
+          ui.commandLine?.colors?.directory ||
+          themeColors.directory ||
+          "#60a5fa",
+        file: ui.commandLine?.colors?.file || themeColors.file || "#fbbf24",
+        command:
+          ui.commandLine?.colors?.command || themeColors.command || "#ffffff",
+        colors: {
+          ...defaultConfig.ui.commandLine.colors,
+          ...ui.commandLine?.colors,
+        },
+        output: {
+          ...defaultConfig.ui.commandLine.output,
+          ...ui.commandLine?.output,
+        },
+      },
+      theme: {
+        current: currentTheme,
+        available: config.value.theme.available,
+        colors: themeColors,
+      },
+    };
+  });
+
+  const infoBarColors = computed(() => uiStyles.value.infoBar);
+
+  // 加载配置
+  const loadConfig = async () => {
+    try {
+      let configContent;
+      let cachedConfig = localStorage.getItem("terminalConfigToml");
+      let needsFresh = !cachedConfig;
+
+      if (cachedConfig) {
+        try {
+          parse(cachedConfig);
+        } catch (e) {
+          localStorage.removeItem("terminalConfigToml");
+          needsFresh = true;
+        }
+      }
+
+      if (needsFresh) {
+        const res = await fetch("/config.toml");
+        if (res.ok) {
+          configContent = await res.text();
+          localStorage.setItem("terminalConfigToml", configContent);
+        }
+      } else {
+        configContent = cachedConfig;
+      }
+
+      if (configContent) {
+        const parsed = parse(configContent);
+        const merged = deepMerge(defaultConfig, parsed);
+        config.value = JSON.parse(JSON.stringify(merged));
+      }
+    } catch (e) {
+      console.warn("Load config failed, using default.", e);
+      config.value = JSON.parse(JSON.stringify(defaultConfig));
+    }
+  };
+
+  // 更新配置
+  const updateTomlConfig = (updates) => {
+    try {
+      const cached = localStorage.getItem("terminalConfigToml");
+      if (!cached) return false;
+      const parsed = parse(cached);
+      const updated = deepMerge(parsed, updates);
+      localStorage.setItem("terminalConfigToml", stringify(updated));
+      loadConfig();
+      return true;
+    } catch (e) {
+      console.error("Update TOML failed", e);
+      return false;
+    }
+  };
+
+  return {
+    config,
+    uiStyles,
+    infoBarColors,
+    fontSize,
+    font,
+    background,
+    theme,
+    asciiArt,
+    welcome,
+    loadConfig,
+    updateTomlConfig,
+  };
+}

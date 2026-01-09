@@ -20,7 +20,7 @@ function readDirectory(dirPath) {
       result.push({
         name: entry.name,
         type: "dir",
-        icon: "",
+        icon: "", // Nerd Font文件夹图标
         content,
       });
     } else if (entry.isFile() && entry.name.endsWith(".md")) {
@@ -28,7 +28,7 @@ function readDirectory(dirPath) {
       result.push({
         name: entry.name,
         type: "file",
-        icon: "",
+        icon: "", // Nerd Font文件图标
         title: entry.name.replace(".md", ""), // 初始化为文件名，用户可以手动修改
         date: new Date().toISOString().split("T")[0], // 初始化为当前日期，用户可以手动修改
         category: path.basename(dirPath), // 使用目录名作为分类
@@ -62,7 +62,7 @@ function generateDownloadDir() {
     const downloadDir = {
       name: "download",
       type: "dir",
-      icon: "",
+      icon: "", // Nerd Font文件夹图标
       content: [],
     };
 
@@ -73,7 +73,7 @@ function generateDownloadDir() {
         const subDir = {
           name: subDirName,
           type: "dir",
-          icon: "",
+          icon: "", // Nerd Font文件夹图标
           content: [],
         };
 
@@ -82,7 +82,7 @@ function generateDownloadDir() {
           subDir.content.push({
             name: fileName,
             type: "file",
-            icon: "",
+            icon: "", // Nerd Font文件图标
             title: fileName,
             date: new Date().toISOString().split("T")[0],
             category: subDirName,
