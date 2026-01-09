@@ -1,183 +1,90 @@
 
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import parse from "@iarna/toml/parse-string.js";
 import stringify from "@iarna/toml/stringify.js";
 import { deepMerge } from "./utils";
 
-const defaultConfig = {
-  app: { user: "Alan" },
+// 空的初始状态，等待 config.toml 加载
+const initialConfig = {
+  app: { user: "Guest" },
   welcome: {
     title: "Terminal Blog",
-    welcomeMsg: "Loading...",
-    helpMsg: "Type 'help'",
+    welcomeMsg: "Loading configuration...",
+    helpMsg: "Please wait...",
   },
   ascii: { art: "" },
   ui: {
     fontSize: "18",
-    fontFamily: "Consolas, Monaco, 'Courier New', monospace",
-    infoBar: {
-      backgroundColor: "transparent",
-      textColor: "#e2e8f0",
-      borderColor: "transparent",
-      height: "24px",
-      padding: "0 10px",
-      leftTemplate: "{user} on {dayOfWeek} at {time}",
-      rightTemplate: "{latency}  MEM: {mem}% ({memUsage}/{memTotal}GB)",
-      colors: {
-        username: "#ffbebc",
-        dayOfWeek: "#bc93ff",
-        commandTime: "#bc93ff",
-        latency: "#a9ffb4",
-        cpu: "#ce9178",
-        mem: "#a9ffb4",
-      },
-    },
-    commandLine: {
-      promptSymbol: "$",
-      promptSymbolColor: "#ec4899",
-      boldPrompt: false,
-      italicPrompt: false,
-      underlinePrompt: false,
-      colors: {
-        prompt: "#3b82f6",
-        directory: "#60a5fa",
-        file: "#fbbf24",
-        command: "#ffffff",
-        error: "#ff0000",
-        success: "#00ff00",
-        warning: "#ffff00",
-        info: "#00ffff",
-      },
-      output: {
-        dirItem: "#60a5fa",
-        fileItem: "#fbbf24",
-        error: "#ff0000",
-        help: "#a9ffb4",
-        listItem: "#ffffff",
-        treeLine: "#6b7280",
-      },
-    },
+    fontFamily: "monospace",
+    infoBar: { colors: {} },
+    commandLine: { colors: {}, output: {} },
   },
-  background: { image: "/public/background.jpg", opacity: "0.9" },
-  theme: {
-    current: "default",
-    available: ["default", "dark", "light", "solarized", "dracula"],
-    default: { prompt: "#3b82f6", directory: "#60a5fa", file: "#fbbf24" },
-  },
-  read_theme: {
-    current: "default",
-    available: ["default", "light", "eye_care"],
-    default: {
-      background: "#0d1117",
-      text: "#c9d1d9",
-      accent: "#58a6ff",
-      codeBackground: "#161b22",
-      tocHover: "rgba(56, 139, 253, 0.15)",
-      borderColor: "#30363d"
-    },
-    light: {
-      background: "#ffffff",
-      text: "#24292f",
-      accent: "#0969da",
-      codeBackground: "#f6f8fa",
-      tocHover: "#ebf0f4",
-      borderColor: "#d0d7de"
-    },
-    eye_care: {
-      background: "#f5f5dc", // 米色/奶油色
-      text: "#4a4a4a",
-      accent: "#8b4513",
-      codeBackground: "#e8e8d0",
-      tocHover: "#e0e0c0",
-      borderColor: "#dcdcaa"
-    }
-  },
+  background: { image: "", opacity: "1.0" },
+  theme: { current: "default", available: [], default: {} },
+  read_theme: { current: "default", available: [], default: {} },
 };
 
 export function useConfig() {
-  const config = ref(JSON.parse(JSON.stringify(defaultConfig)));
+  const config = ref(JSON.parse(JSON.stringify(initialConfig)));
+  const isLoaded = ref(false);
+  const error = ref(null);
 
   // 基础计算属性
-  const fontSize = computed(() => config.value.ui.fontSize);
+  const fontSize = computed(() => config.value.ui?.fontSize || "18");
   const font = {
-    family: computed(() => config.value.ui.fontFamily || "Cascadia Code"),
+    family: computed(() => config.value.ui?.fontFamily || "monospace"),
   };
   const background = {
-    image: computed(() => {
-      const img = config.value.background.image;
-      // 如果是绝对 URL (http/https/data) 或相对路径 (不以 / 开头)，直接返回
-      if (/^(https?:|data:|\.)/.test(img)) return img;
-      
-      // 如果是以 / 开头的绝对路径，尝试拼接当前 URL 的路径部分（用于支持非根目录部署）
-      if (img.startsWith("/")) {
-        // 获取当前页面的 base URL（去除末尾的文件名，如 index.html）
-        const baseUrl = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-        // 去掉 img 开头的 /，防止双重斜杠
-        const relativePath = img.substring(1);
-        // 拼接
-        return `${window.location.origin}${baseUrl}${relativePath}`;
-      }
-      
-      return img;
-    }),
-    opacity: computed(() => parseFloat(config.value.background.opacity)),
+    image: computed(() => config.value.background?.image || ""),
+    opacity: computed(() => parseFloat(config.value.background?.opacity || "1.0")),
   };
   const asciiArt = computed(() => config.value.ascii?.art || "");
-  const welcome = computed(() => config.value.welcome || defaultConfig.welcome);
+  const welcome = computed(() => config.value.welcome || initialConfig.welcome);
 
   const theme = {
-    current: computed(() => config.value.theme.current),
-    available: computed(() => config.value.theme.available),
-    colors: computed(
-      () => config.value.theme[config.value.theme.current] || {}
-    ),
+    current: computed(() => config.value.theme?.current || "default"),
+    available: computed(() => config.value.theme?.available || []),
+    colors: computed(() => {
+        const current = config.value.theme?.current;
+        return (current && config.value.theme?.[current]) ? config.value.theme[current] : {};
+    }),
   };
 
   const readTheme = {
     current: computed(() => config.value.read_theme?.current || "default"),
-    available: computed(() => config.value.read_theme?.available || ["default"]),
+    available: computed(() => config.value.read_theme?.available || []),
     colors: computed(() => {
-       const current = config.value.read_theme?.current || "default";
-       return config.value.read_theme?.[current] || defaultConfig.read_theme.default;
+       const current = config.value.read_theme?.current;
+       return (current && config.value.read_theme?.[current]) ? config.value.read_theme[current] : {};
     }),
   };
 
-  // 巨大的样式计算
+  // 样式计算
   const uiStyles = computed(() => {
+    // 只有加载成功后才进行复杂的样式计算
+    if (!isLoaded.value) return { infoBar: {}, commandLine: {}, theme: {} };
+
     const currentTheme = theme.current.value;
-    const themeColors = config.value.theme[currentTheme] || {};
-    const ui = config.value.ui || defaultConfig.ui;
+    const themeColors = config.value.theme?.[currentTheme] || {};
+    const ui = config.value.ui || {};
 
     return {
       infoBar: {
-        ...defaultConfig.ui.infoBar,
         ...ui.infoBar,
-        colors: { ...defaultConfig.ui.infoBar.colors, ...ui.infoBar?.colors },
+        colors: { ...ui.infoBar?.colors },
       },
       commandLine: {
-        ...defaultConfig.ui.commandLine,
         ...ui.commandLine,
-        prompt:
-          ui.commandLine?.colors?.prompt || themeColors.prompt || "#3b82f6",
-        directory:
-          ui.commandLine?.colors?.directory ||
-          themeColors.directory ||
-          "#60a5fa",
+        prompt: ui.commandLine?.colors?.prompt || themeColors.prompt || "#3b82f6",
+        directory: ui.commandLine?.colors?.directory || themeColors.directory || "#60a5fa",
         file: ui.commandLine?.colors?.file || themeColors.file || "#fbbf24",
-        command:
-          ui.commandLine?.colors?.command || themeColors.command || "#ffffff",
-        colors: {
-          ...defaultConfig.ui.commandLine.colors,
-          ...ui.commandLine?.colors,
-        },
-        output: {
-          ...defaultConfig.ui.commandLine.output,
-          ...ui.commandLine?.output,
-        },
+        command: ui.commandLine?.colors?.command || themeColors.command || "#ffffff",
+        colors: { ...ui.commandLine?.colors },
+        output: { ...ui.commandLine?.output },
       },
       theme: {
         current: currentTheme,
-        available: config.value.theme.available,
+        available: config.value.theme?.available || [],
         colors: themeColors,
       },
     };
@@ -203,13 +110,10 @@ export function useConfig() {
       }
 
       if (needsFresh) {
-        // 使用相对路径 ./config.toml 适配 base: './'
         const res = await fetch("./config.toml");
-        // 检查返回内容是否为 HTML (即 404 页面的情况)
         const contentType = res.headers.get("content-type");
         if (res.ok && (!contentType || !contentType.includes("text/html"))) {
           configContent = await res.text();
-          // 双重校验：确保不是 HTML doctype 开头
           if (configContent.trim().toLowerCase().startsWith("<!doctype")) {
              throw new Error("Received HTML instead of TOML");
           }
@@ -223,13 +127,18 @@ export function useConfig() {
 
       if (configContent) {
         const parsed = parse(configContent);
-        const merged = deepMerge(defaultConfig, parsed);
-        config.value = JSON.parse(JSON.stringify(merged));
+        // 直接使用解析后的配置，不与默认配置合并
+        config.value = parsed;
+        isLoaded.value = true;
+        error.value = null;
+      } else {
+          throw new Error("Empty configuration content");
       }
     } catch (e) {
-      console.error("Failed to load config.toml:", e);
-      console.warn("Falling back to default configuration.");
-      config.value = JSON.parse(JSON.stringify(defaultConfig));
+      console.error("Critical: Failed to load config.toml:", e);
+      error.value = e.message;
+      // 不回退到默认配置，保持错误状态
+      isLoaded.value = false;
     }
   };
 
@@ -262,5 +171,7 @@ export function useConfig() {
     welcome,
     loadConfig,
     updateTomlConfig,
+    isLoaded, // 导出加载状态
+    error,    // 导出错误信息
   };
 }

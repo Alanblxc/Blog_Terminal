@@ -21,7 +21,14 @@
         fontSize: `${fontSize}px`,
       }"
     >
-      <div class="terminal-content">
+      <div v-if="error" style="color: red; padding: 20px;">
+        <h3>Configuration Error</h3>
+        <p>{{ error }}</p>
+      </div>
+      <div v-else-if="!isLoaded" style="color: white; padding: 20px;">
+        Loading configuration...
+      </div>
+      <div class="terminal-content" v-else>
         <!-- 欢迎组件 -->
         <Welcome v-if="showWelcome" :welcome="welcome" :ascii-art="asciiArt" />
 
@@ -252,6 +259,8 @@ const {
   asciiArt,
   welcome,
   loadConfig,
+  isLoaded,
+  error
 } = configContext;
 
 // 2. 初始化终端逻辑
