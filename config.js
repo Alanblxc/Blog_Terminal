@@ -131,14 +131,19 @@ const totalFiles = posts.reduce((sum, item) => {
 }, 0);
 console.log(`📄 Total files: ${totalFiles}`);
 
-// 复制功能 - 合并copy-posts.js的功能
+// -------------------------------------------------------------------------
+// 资源复制逻辑
+// -------------------------------------------------------------------------
 const DIST_DIR = "./dist";
-const DIST_POST_DIR = path.join(DIST_DIR, "post");
 
-// 递归复制目录的辅助函数
-function copyDir(src, dest) {
+// 递归复制目录函数
+function copyDirectory(src, dest) {
+  if (!fs.existsSync(src)) {
+    console.warn(`⚠️  Source directory not found: ${src}`);
+    return;
+  }
+  
   if (!fs.existsSync(dest)) {
-    console.log(`Creating directory: ${dest}`);
     fs.mkdirSync(dest, { recursive: true });
   }
 
@@ -149,48 +154,48 @@ function copyDir(src, dest) {
     const destPath = path.join(dest, entry.name);
 
     if (entry.isDirectory()) {
-      copyDir(srcPath, destPath);
+      copyDirectory(srcPath, destPath);
     } else {
       fs.copyFileSync(srcPath, destPath);
-      console.log(`✓ Copied: ${srcPath} -> ${destPath}`);
     }
   }
 }
 
-// 检查dist目录是否存在
+// 复制单个文件函数
+function copyFile(src, dest) {
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+    console.log(`✓ Copied: ${src} -> ${dest}`);
+  } else {
+    console.warn(`⚠️  Source file not found: ${src}`);
+  }
+}
+
+// 执行复制任务
 if (fs.existsSync(DIST_DIR)) {
-  console.log(`\n📁 Copying post directory to ${DIST_POST_DIR}...`);
+  console.log("\n🚀 Starting post-build copy tasks...");
 
-  // 复制post目录
-  copyDir(POSTS_DIR, DIST_POST_DIR);
+  // 1. 复制 public 目录 -> dist/public
+  // 用户明确要求保留 public 文件夹结构
+  const publicSrc = "./public";
+  const publicDest = path.join(DIST_DIR, "public");
+  console.log(`📁 Copying public directory to ${publicDest}...`);
+  copyDirectory(publicSrc, publicDest);
+  console.log(`✓ Copied public directory`);
 
-  // 复制根目录README.md到dist
-  const readmeSrc = "./README.md";
-  const readmeDest = "./dist/README.md";
-  if (fs.existsSync(readmeSrc)) {
-    fs.copyFileSync(readmeSrc, readmeDest);
-    console.log(`✓ Copied: ${readmeSrc} -> ${readmeDest}`);
-  }
+  // 2. 复制 posts.json -> dist/posts.json
+  // OUTPUT_FILE 已经在上面定义为 "./posts.json"
+  copyFile(OUTPUT_FILE, path.join(DIST_DIR, "posts.json"));
 
-  // 复制posts.json到dist目录
-  const postsJsonSrc = "./posts.json";
-  const postsJsonDest = "./dist/posts.json";
-  if (fs.existsSync(postsJsonSrc)) {
-    fs.copyFileSync(postsJsonSrc, postsJsonDest);
-    console.log(`✓ Copied: ${postsJsonSrc} -> ${postsJsonDest}`);
-  }
+  // 3. 复制 config.toml -> dist/config.toml
+  copyFile("./config.toml", path.join(DIST_DIR, "config.toml"));
+  
+  // 4. 复制 README.md (可选，但推荐)
+  copyFile("./README.md", path.join(DIST_DIR, "README.md"));
 
-  // 复制config.toml到dist目录
-  const configJsonSrc = "./config.toml";
-  const configJsonDest = "./dist/config.toml";
-  if (fs.existsSync(configJsonSrc)) {
-    fs.copyFileSync(configJsonSrc, configJsonDest);
-    console.log(`✓ Copied: ${configJsonSrc} -> ${configJsonDest}`);
-  }
-
-  console.log(
-    `\n✅ Post directory, README.md, posts.json and config.toml copied successfully!`
-  );
+  console.log("\n✅ All build assets copied successfully!");
+} else {
+  console.warn(`\n⚠️  Dist directory not found at ${DIST_DIR}. Make sure to run 'npm run build' before this script if you intend to deploy.`);
 }
 
 console.log(

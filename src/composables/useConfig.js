@@ -1,6 +1,7 @@
 
 import { ref, computed, watch } from "vue";
-import { parse, stringify } from "@iarna/toml";
+import parse from "@iarna/toml/parse-string.js";
+import stringify from "@iarna/toml/stringify.js";
 import { deepMerge } from "./utils";
 
 const defaultConfig = {
@@ -185,10 +186,19 @@ export function useConfig() {
       }
 
       if (needsFresh) {
-        const res = await fetch("/config.toml");
-        if (res.ok) {
+        // 使用相对路径 ./config.toml 适配 base: './'
+        const res = await fetch("./config.toml");
+        // 检查返回内容是否为 HTML (即 404 页面的情况)
+        const contentType = res.headers.get("content-type");
+        if (res.ok && (!contentType || !contentType.includes("text/html"))) {
           configContent = await res.text();
+          // 双重校验：确保不是 HTML doctype 开头
+          if (configContent.trim().toLowerCase().startsWith("<!doctype")) {
+             throw new Error("Received HTML instead of TOML");
+          }
           localStorage.setItem("terminalConfigToml", configContent);
+        } else {
+           throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
         }
       } else {
         configContent = cachedConfig;
