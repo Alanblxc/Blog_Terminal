@@ -38,21 +38,29 @@ npm run dev
 npm run build
 ```
 
+### 部署到 GitHub Pages
+
+```bash
+npm run deploy
+```
+> **注意**：该命令会自动执行构建并将 `dist` 目录推送到 `gh-pages` 分支。
+
 ## 项目结构
 
 ```
 ├── src/                    # 源代码目录
 │   ├── components/         # Vue 组件
 │   ├── commands/           # 命令处理函数
+│   ├── composables/        # 组合式函数 (逻辑封装)
 │   ├── App.vue             # 主应用组件
 │   └── main.js             # 入口文件
-├── post/                   # 文章目录
-│   ├── Readme.md           # 使用教程
-│   └── ...                 # 分类和文章
-├── public/                 # 静态资源
-├── generate-posts-json.js  # 生成文章 JSON 的脚本
-├── copy-posts.js           # 复制文章目录的脚本
-└── vite.config.js          # Vite 配置
+├── public/                 # 静态资源目录
+│   ├── post/               # 博客文章 (.md 文件)
+│   └── background.jpg      # 终端背景图
+├── config.js               # 自动化脚本 (生成 posts.json 并处理资源复制)
+├── config.toml             # 应用配置文件 (用户可自定义界面和功能)
+├── vite.config.js          # Vite 配置文件
+└── package.json            # 项目依赖和脚本
 ```
 
 ## 命令说明
@@ -61,6 +69,7 @@ npm run build
 
 - `npm run dev` - 启动开发服务器
 - `npm run build` - 构建生产版本
+- `npm run deploy` - 部署到 GitHub Pages
 - `npm run generate-posts` - 生成 posts.json 文件
 - `npm run copy-posts` - 复制文章目录到 dist
 
