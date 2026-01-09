@@ -17,7 +17,7 @@
               "title": "Readme",
               "date": "2026-01-09",
               "category": "desktop",
-              "path": "post/Alan/desktop/Readme.md"
+              "path": "public/post/Alan/desktop/Readme.md"
             }
           ]
         }
@@ -35,7 +35,7 @@
           "title": "daily-thoughts",
           "date": "2026-01-09",
           "category": "life",
-          "path": "post/life/daily-thoughts.md"
+          "path": "public/post/life/daily-thoughts.md"
         },
         {
           "name": "travel-diary.md",
@@ -44,7 +44,7 @@
           "title": "travel-diary",
           "date": "2026-01-09",
           "category": "life",
-          "path": "post/life/travel-diary.md"
+          "path": "public/post/life/travel-diary.md"
         }
       ]
     },
@@ -55,7 +55,7 @@
       "title": "Readme",
       "date": "2026-01-09",
       "category": "post",
-      "path": "post/Readme.md"
+      "path": "public/post/Readme.md"
     },
     {
       "name": "study",
@@ -69,7 +69,7 @@
           "title": "book-notes",
           "date": "2026-01-09",
           "category": "study",
-          "path": "post/study/book-notes.md"
+          "path": "public/post/study/book-notes.md"
         },
         {
           "name": "learning-plan.md",
@@ -78,7 +78,7 @@
           "title": "learning-plan",
           "date": "2026-01-09",
           "category": "study",
-          "path": "post/study/learning-plan.md"
+          "path": "public/post/study/learning-plan.md"
         }
       ]
     },
@@ -94,7 +94,7 @@
           "title": "terminal-design",
           "date": "2026-01-09",
           "category": "tech",
-          "path": "post/tech/terminal-design.md"
+          "path": "public/post/tech/terminal-design.md"
         },
         {
           "name": "vue3-intro.md",
@@ -103,7 +103,7 @@
           "title": "vue3-intro",
           "date": "2026-01-09",
           "category": "tech",
-          "path": "post/tech/vue3-intro.md"
+          "path": "public/post/tech/vue3-intro.md"
         }
       ]
     },

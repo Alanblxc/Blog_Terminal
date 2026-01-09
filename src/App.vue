@@ -22,48 +22,27 @@
       }"
     >
       <div class="terminal-content">
+        <!-- 欢迎区域：完全由配置驱动 -->
         <div v-if="showWelcome" class="welcome">
-          <pre v-if="!isMobile" class="ascii-art">
- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@##******#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%*+===============+%#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@@@@@@##++++===+================+#@@@@@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@@@@@+++++++++++==+==+=======+=++++%@@@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@@@+++++++++++++++===========++++++++%@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@#+++++++++=+++++=====+=====+++++++++++@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@%+++==------------==========++++++++++++#@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@%+=-------------------========++++++++++++@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@=-----------------------========++++++++++#@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@-----------------+######+-========+++++++++@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@=---------------:##########==========++++++*@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@=-------------::*##########%===============@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@=------------::::@#########==============+#@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@#-----------:::::%@######*==============+@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@-----------::::::+@#######===========##@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@%----------::::::::*####@@@@@#####@#@@@@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@%---------::::::::::+%@@@@@@#####@#@@@@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@#=-------::::::::::::::***%###%**+::-#@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@@@=-------:::::::::::::::::::::::::-@@@@@@@@@@@@@@@@@@@@@@@ 
- @@@@@@@@@@@@@@@@@@@@@@@@@=-------:::::::::::::::::::::-@######################## 
- @@@@@@@@@@@@@@@@@@@@@@@@@@##------::::::::::::::::::##@######################### 
- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%*------:::::::::-**@@@@@######################### 
- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#####@#%+**+%#@@#@@@@@@@@######################### 
- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#################@@@@@@@@######################### 
- @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#################@@@@@@@@#########################</pre
-          >
+          <!-- 优化点：ASCII Art 改为数据绑定，不再硬编码 -->
+          <pre v-if="!isMobile && asciiArt" class="ascii-art">{{
+            asciiArt
+          }}</pre>
+
           <div class="system-info">
-            <div class="info-header">{{ welcomeConfig.title }}</div>
+            <!-- 优化点：直接读取配置中的欢迎信息 -->
+            <div class="info-header">{{ welcome.title }}</div>
             <div class="info-item">
               󰍹&nbsp; OS {{ browserInfo.getOsType() }}
             </div>
             <div class="info-item">
               🌐&nbsp;Browser {{ browserInfo.getBrowserType() }}
             </div>
-            <div class="info-item">{{ welcomeConfig.welcomeMsg }}</div>
-            <div class="info-item">{{ welcomeConfig.helpMsg }}</div>
+            <div class="info-item" v-html="welcome.welcomeMsg"></div>
+            <div class="info-item" v-html="welcome.helpMsg"></div>
           </div>
         </div>
+
         <!-- 渲染每一次对话 -->
         <div
           v-for="(conversation, convIndex) in conversations"
@@ -76,31 +55,39 @@
               <div
                 class="info-bar-left"
                 v-html="
-                  parseInfoBarTemplate(uiStyles.infoBar.leftTemplate, {
-                    user: user,
-                    dayOfWeek: getDayOfWeek(),
-                    time: conversation.command.time,
-                    latency: latency,
-                    cpu: cpuInfo,
-                    mem: memoryInfo.percent,
-                    memUsage: memoryInfo.usage,
-                    memTotal: memoryInfo.total,
-                  })
+                  parseInfoBarTemplate(
+                    uiStyles.infoBar.leftTemplate,
+                    {
+                      user: user,
+                      dayOfWeek: getDayOfWeek(),
+                      time: conversation.command.time,
+                      latency: latency,
+                      cpu: cpuInfo,
+                      mem: memoryInfo.percent,
+                      memUsage: memoryInfo.usage,
+                      memTotal: memoryInfo.total,
+                    },
+                    uiStyles.infoBar.colors
+                  )
                 "
               ></div>
               <div
                 class="info-bar-right"
                 v-html="
-                  parseInfoBarTemplate(uiStyles.infoBar.rightTemplate, {
-                    user: user,
-                    dayOfWeek: getDayOfWeek(),
-                    time: conversation.command.time,
-                    latency: latency,
-                    cpu: cpuInfo,
-                    mem: memoryInfo.percent,
-                    memUsage: memoryInfo.usage,
-                    memTotal: memoryInfo.total,
-                  })
+                  parseInfoBarTemplate(
+                    uiStyles.infoBar.rightTemplate,
+                    {
+                      user: user,
+                      dayOfWeek: getDayOfWeek(),
+                      time: conversation.command.time,
+                      latency: latency,
+                      cpu: cpuInfo,
+                      mem: memoryInfo.percent,
+                      memUsage: memoryInfo.usage,
+                      memTotal: memoryInfo.total,
+                    },
+                    uiStyles.infoBar.colors
+                  )
                 "
               ></div>
             </div>
@@ -187,43 +174,49 @@
               v-else-if="outputItem.type === 'editor'"
               class="editor-output"
               ref="editorContainer"
-            >
-              <!-- 编辑器内容将通过JavaScript动态添加 -->
-            </div>
+            ></div>
             <div v-else>{{ outputItem.content }}</div>
           </div>
         </div>
-        <!-- 当前输入行 - 仅在命令执行完毕后显示 -->
+        <!-- 当前输入行 -->
         <div v-if="!isCommandExecuting" class="input-line">
           <div class="prompt-header">
             <div
               class="info-bar-left"
               v-html="
-                parseInfoBarTemplate(uiStyles.infoBar.leftTemplate, {
-                  user: user,
-                  dayOfWeek: getDayOfWeek(),
-                  time: currentTime,
-                  latency: latency,
-                  cpu: cpuInfo,
-                  mem: memoryInfo.percent,
-                  memUsage: memoryInfo.usage,
-                  memTotal: memoryInfo.total,
-                })
+                parseInfoBarTemplate(
+                  uiStyles.infoBar.leftTemplate,
+                  {
+                    user: user,
+                    dayOfWeek: getDayOfWeek(),
+                    time: currentTime,
+                    latency: latency,
+                    cpu: cpuInfo,
+                    mem: memoryInfo.percent,
+                    memUsage: memoryInfo.usage,
+                    memTotal: memoryInfo.total,
+                  },
+                  uiStyles.infoBar.colors
+                )
               "
             ></div>
             <div
               class="info-bar-right"
               v-html="
-                parseInfoBarTemplate(uiStyles.infoBar.rightTemplate, {
-                  user: user,
-                  dayOfWeek: getDayOfWeek(),
-                  time: currentTime,
-                  latency: latency,
-                  cpu: cpuInfo,
-                  mem: memoryInfo.percent,
-                  memUsage: memoryInfo.usage,
-                  memTotal: memoryInfo.total,
-                })
+                parseInfoBarTemplate(
+                  uiStyles.infoBar.rightTemplate,
+                  {
+                    user: user,
+                    dayOfWeek: getDayOfWeek(),
+                    time: currentTime,
+                    latency: latency,
+                    cpu: cpuInfo,
+                    mem: memoryInfo.percent,
+                    memUsage: memoryInfo.usage,
+                    memTotal: memoryInfo.total,
+                  },
+                  uiStyles.infoBar.colors
+                )
               "
             ></div>
           </div>
@@ -273,7 +266,7 @@
               }"
             >
               <span
-                v-if="isDir(item)"
+                v-if="isDir(item, currentDir)"
                 class="dir-item"
                 :style="{ color: uiStyles.commandLine.directory }"
                 >📁 {{ item }}</span
@@ -295,15 +288,29 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from "vue";
 import { marked } from "marked";
-import postsData from "../posts.json";
 import { parse, stringify } from "@iarna/toml";
 
-// 从命令模块导入命令映射
-import commands from "./commands"; // 优雅的默认导入
+import commands from "./commands";
+import { deepMerge, browserInfo, parseInfoBarTemplate } from "./js/utils";
+import {
+  getArticleInfo,
+  isDir,
+  getCompletionItems,
+  articles,
+} from "./js/fileSystem";
 
-// 配置默认值（用于初始化ref）
+// 优化点：defaultConfig 包含完整结构，但内容留空或设为最简，由 config.toml 填充
 const defaultConfig = {
   app: { user: "Alan" },
+  // 添加 welcome 和 ascii 的默认结构，防止 undefined 报错
+  welcome: {
+    title: "Terminal Blog",
+    welcomeMsg: "Loading...",
+    helpMsg: "Type 'help'",
+  },
+  ascii: {
+    art: "", // 留空，通过 TOML 加载
+  },
   ui: {
     fontSize: "18",
     fontFamily: "Consolas, Monaco, 'Courier New', monospace",
@@ -327,7 +334,6 @@ const defaultConfig = {
     commandLine: {
       promptSymbol: "$",
       promptSymbolColor: "#ec4899",
-      // 文本格式选项
       boldPrompt: false,
       italicPrompt: false,
       underlinePrompt: false,
@@ -341,7 +347,6 @@ const defaultConfig = {
         warning: "#ffff00",
         info: "#00ffff",
       },
-      // 输出格式配色
       output: {
         dirItem: "#60a5fa",
         fileItem: "#fbbf24",
@@ -368,60 +373,26 @@ const defaultConfig = {
   },
 };
 
-// 辅助函数：深度合并两个对象
-const deepMerge = (target, source) => {
-  // 如果source不是对象，直接返回source
-  if (typeof source !== "object" || source === null) {
-    return source;
-  }
+// 配置状态管理
+// 初始化时包含所有结构，避免计算属性报错
+const config = ref(JSON.parse(JSON.stringify(defaultConfig)));
 
-  // 如果target不是对象，创建一个空对象
-  if (typeof target !== "object" || target === null) {
-    target = {};
-  }
-
-  // 遍历source的所有键
-  for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
-      // 如果source[key]是对象，递归合并
-      if (typeof source[key] === "object" && source[key] !== null) {
-        if (Array.isArray(source[key])) {
-          // 如果是数组，直接替换
-          target[key] = source[key];
-        } else {
-          // 如果是对象，递归合并
-          target[key] = deepMerge(target[key], source[key]);
-        }
-      } else {
-        // 否则直接赋值
-        target[key] = source[key];
-      }
-    }
-  }
-
-  return target;
-};
+// 优化点：使用 computed 属性从 config 中提取数据
+// 这样当 loadConfig 更新 config.value 时，UI 会自动更新
+const asciiArt = computed(() => config.value.ascii?.art || "");
+const welcome = computed(() => config.value.welcome || defaultConfig.welcome);
 
 // 辅助函数：更新localStorage中的TOML配置
 const updateTomlConfig = (updates) => {
   try {
-    // 获取当前缓存的TOML配置
     const cachedConfig = localStorage.getItem("terminalConfigToml");
     if (!cachedConfig) return false;
 
-    // 解析TOML到JS对象
     const parsedConfig = parse(cachedConfig);
-
-    // 使用深度合并应用更新
     const updatedConfig = deepMerge(parsedConfig, updates);
-
-    // 使用@iarna/toml的stringify函数转换为TOML格式
     const tomlString = stringify(updatedConfig);
 
-    // 保存回localStorage
     localStorage.setItem("terminalConfigToml", tomlString);
-
-    // 重新加载配置以应用更改
     loadConfig();
 
     return true;
@@ -431,22 +402,17 @@ const updateTomlConfig = (updates) => {
   }
 };
 
-// 在浏览器环境中使用fetch读取配置文件，并缓存到localStorage
+// 加载配置
 const loadConfig = async () => {
   try {
     let configContent;
     let isFreshConfig = false;
 
-    // 检查localStorage中是否有缓存的配置
     let cachedConfig = localStorage.getItem("terminalConfigToml");
-
-    // 标记是否需要获取新配置
     let needsFreshConfig = !cachedConfig;
 
-    // 如果有缓存但之前解析失败过，尝试获取新配置
     if (cachedConfig) {
       try {
-        // 预检查缓存是否有效
         parse(cachedConfig);
         console.log("Using cached config.toml from localStorage");
       } catch (preCheckError) {
@@ -457,276 +423,77 @@ const loadConfig = async () => {
       }
     }
 
-    // 如果需要获取新配置
     if (needsFreshConfig) {
       const response = await fetch("/config.toml");
       if (response.ok) {
         configContent = await response.text();
-        // 将原始TOML内容缓存到localStorage
         localStorage.setItem("terminalConfigToml", configContent);
         console.log("Fetched and cached fresh config.toml from server");
         isFreshConfig = true;
       }
     } else {
-      // 使用缓存的配置
       configContent = cachedConfig;
     }
 
     if (configContent) {
-      // 解析TOML配置
       const parsedConfig = parse(configContent);
-      // 使用深度合并将解析后的配置与默认配置合并
       const mergedConfig = deepMerge(defaultConfig, parsedConfig);
-      // 更新响应式配置变量
-      config.value = mergedConfig;
-
-      // 更新欢迎语配置
-      if (mergedConfig.welcome) {
-        welcomeConfig.value = deepMerge(
-          welcomeConfig.value,
-          mergedConfig.welcome
-        );
-      }
+      // 使用深拷贝确保响应式更新
+      config.value = JSON.parse(JSON.stringify(mergedConfig));
+      // 注意：不再需要单独维护 welcomeConfig，它现在是 config 的一部分
     }
   } catch (error) {
     console.warn(
       `Failed to load config.toml: ${error.message}. Using default configuration.`
     );
-    // 如果配置加载失败，尝试清除可能损坏的缓存
     localStorage.removeItem("terminalConfigToml");
-    // 使用默认配置
-    config.value = deepMerge({}, defaultConfig);
+    config.value = JSON.parse(JSON.stringify(deepMerge({}, defaultConfig)));
   }
 };
 
-// 初始化应用配置
 const initApp = async () => {
   await loadConfig();
-  // 不再加载terminalSettings，所有配置都来自TOML
 };
 
-// 配置状态管理
-const config = ref({
-  app: { user: "Alan" },
-  ui: {
-    fontSize: "18",
-    fontFamily: "Consolas, Monaco, 'Courier New', monospace",
-    infoBar: {
-      backgroundColor: "transparent",
-      textColor: "#e2e8f0",
-      borderColor: "transparent",
-      height: "24px",
-      padding: "0 10px",
-      leftTemplate: "{user} on {dayOfWeek} at {time}",
-      rightTemplate: "{latency}  MEM: {mem}% ({memUsage}/{memTotal}GB)",
-      colors: {
-        username: "#ffbebc",
-        dayOfWeek: "#bc93ff",
-        commandTime: "#bc93ff",
-        latency: "#a9ffb4",
-        cpu: "#ce9178",
-        mem: "#a9ffb4",
-      },
-    },
-    commandLine: {
-      promptSymbol: "$",
-      promptSymbolColor: "#ec4899",
-      boldPrompt: false,
-      italicPrompt: false,
-      underlinePrompt: false,
-      colors: {
-        prompt: "#3b82f6",
-        directory: "#60a5fa",
-        file: "#fbbf24",
-        command: "#ffffff",
-        error: "#ff0000",
-        success: "#00ff00",
-        warning: "#ffff00",
-        info: "#00ffff",
-      },
-      output: {
-        dirItem: "#60a5fa",
-        fileItem: "#fbbf24",
-        error: "#ff0000",
-        help: "#a9ffb4",
-        listItem: "#ffffff",
-        treeLine: "#6b7280",
-      },
-    },
-  },
-  background: { image: "/background.jpg", opacity: "0.9" },
-  theme: {
-    current: "default",
-    available: ["default", "dark", "light", "solarized", "dracula"],
-    default: {
-      background: "#000000",
-      text: "#ffffff",
-      prompt: "#3b82f6",
-      command: "#ffffff",
-      directory: "#60a5fa",
-      file: "#fbbf24",
-      error: "#ff0000",
-    },
-  },
-});
-
-// 状态管理 - 按功能分组
-const conversations = ref([]); // 对话数组，每个元素包含命令和输出
+const conversations = ref([]);
 const command = ref("");
 const inputRef = ref(null);
 const terminalRef = ref(null);
 const currentDir = ref("/");
 const showWelcome = ref(true);
-const isMobile = ref(false); // 检测是否为移动设备
+const isMobile = ref(false);
 
-// 欢迎语配置
-const welcomeConfig = ref({
-  title: "Welcome to My Terminal Blog",
-  welcomeMsg:
-    "📝&nbsp;Type 'ls' to see categories, 'cat file.md' to read articles, 'tree' to see directory structure",
-  helpMsg: "💡&nbsp;Type 'help' for available commands",
-});
-
-// Tab补全状态管理
 const tabCompleteState = ref({
-  currentCmd: "", // 当前命令
-  currentArg: "", // 当前参数
-  originalArg: "", // 原始前缀（用于过滤匹配项）
-  items: [], // 补全列表
-  index: -1, // 当前补全索引
-  showAll: false, // 是否显示所有补全选项
-  firstTab: true, // 是否是第一次按Tab键
+  currentCmd: "",
+  currentArg: "",
+  originalArg: "",
+  items: [],
+  index: -1,
+  showAll: false,
+  firstTab: true,
 });
 
-// 通用文件补全函数
-const getCompletionItems = (cmd, currentDirValue, currentArg) => {
-  const currentContent = articles[currentDirValue];
-  if (!currentContent || currentContent.type !== "dir") {
-    return [];
-  }
-
-  // 确定补全类型：文件夹、文件或两者
-  let itemTypes = [];
-  if (cmd === "cd") {
-    // cd只补全文件夹
-    itemTypes = ["dir"];
-  } else if (cmd === "cat" || cmd === "wget") {
-    // cat和wget只补全文件
-    itemTypes = ["file"];
-  } else if (cmd === "ls") {
-    // ls补全文件夹和文件
-    itemTypes = ["dir", "file"];
-  } else {
-    // 默认补全文件夹和文件
-    itemTypes = ["dir", "file"];
-  }
-
-  // 获取所有匹配类型的项
-  let allItems = currentContent.content
-    .filter((item) => itemTypes.includes(item.type))
-    .map((item) => item.name);
-
-  // 排序候选项
-  allItems.sort();
-
-  // 如果有前缀，过滤匹配前缀的项
-  if (currentArg) {
-    return allItems.filter((item) => item.startsWith(currentArg));
-  }
-
-  return allItems;
-};
-
-// 用户和系统信息
 const user = computed(() => config.value.app.user);
 const currentTime = ref("");
 const currentDayOfWeek = ref("");
-const browserInfo = {
-  getBrowserType: () => {
-    const userAgent = navigator.userAgent;
-    if (userAgent.includes("Chrome")) return "Chrome";
-    if (userAgent.includes("Firefox")) return "Firefox";
-    if (userAgent.includes("Safari")) return "Safari";
-    if (userAgent.includes("Edge")) return "Edge";
-    return "Unknown Browser";
-  },
-  getOsType: () => {
-    const platform = navigator.platform;
-    if (platform.includes("Win")) return "Windows";
-    if (platform.includes("Mac")) return "macOS";
-    if (platform.includes("Linux")) return "Linux";
-    if (platform.includes("Android")) return "Android";
-    if (platform.includes("iOS")) return "iOS";
-    return "Unknown OS";
-  },
-};
 
-// 性能和资源信息
 const memoryInfo = {
   usage: ref("0"),
   total: ref("0"),
   percent: ref("0"),
 };
-const cpuInfo = ref("0%"); // CPU使用率
+const cpuInfo = ref("0%");
 const latency = ref("0.000s");
 
-// 解析信息栏模板，替换变量为实际值
-const parseInfoBarTemplate = (template, data) => {
-  // 确保获取ref的实际值
-  const getValue = (val) => {
-    return typeof val === "object" && val !== null && "value" in val
-      ? val.value
-      : val;
-  };
-
-  // 替换所有可用变量
-  let parsedTemplate = template;
-  const variables = {
-    "{user}": `<span style="color: ${
-      uiStyles.value.infoBar.colors.username
-    }">${getValue(data.user)}</span>`,
-    "{dayOfWeek}": `<span style="color: ${
-      uiStyles.value.infoBar.colors.dayOfWeek
-    }">${getValue(data.dayOfWeek)}</span>`,
-    "{time}": `<span style="color: ${
-      uiStyles.value.infoBar.colors.commandTime
-    }">${getValue(data.time)}</span>`,
-    "{latency}": `<span style="color: ${
-      uiStyles.value.infoBar.colors.latency
-    }">${getValue(data.latency)}</span>`,
-    "{cpu}": `<span style="color: ${
-      uiStyles.value.infoBar.colors.cpu
-    }">${getValue(data.cpu)}</span>`,
-    "{mem}": `<span style="color: ${
-      uiStyles.value.infoBar.colors.mem
-    }">${getValue(data.mem)}</span>`,
-    "{memUsage}": `<span style="color: ${
-      uiStyles.value.infoBar.colors.mem
-    }">${getValue(data.memUsage)}</span>`,
-    "{memTotal}": `<span style="color: ${
-      uiStyles.value.infoBar.colors.mem
-    }">${getValue(data.memTotal)}</span>`,
-  };
-
-  // 替换模板中的所有变量
-  for (const [key, value] of Object.entries(variables)) {
-    parsedTemplate = parsedTemplate.replace(new RegExp(key, "g"), value);
-  }
-
-  return parsedTemplate;
-};
-
-// UI 相关状态
-const fontSize = computed(() => config.value.ui.fontSize); // 字体大小，从配置文件读取
+const fontSize = computed(() => config.value.ui.fontSize);
 const font = {
-  family: computed(() => config.value.ui.fontFamily || "Cascadia Code"), // 字体，从配置文件读取，默认为Cascadia Code
+  family: computed(() => config.value.ui.fontFamily || "Cascadia Code"),
 };
 const background = {
-  image: computed(() => config.value.background.image), // 背景图片路径，从配置文件读取
-  opacity: computed(() => parseFloat(config.value.background.opacity)), // 背景透明度，初始化为数字类型
+  image: computed(() => config.value.background.image),
+  opacity: computed(() => parseFloat(config.value.background.opacity)),
 };
 
-// 主题相关状态
 const theme = {
   current: computed(() => config.value.theme.current),
   available: computed(() => config.value.theme.available),
@@ -741,15 +508,11 @@ const theme = {
   }),
 };
 
-// 样式配置统一管理 - 使用computed属性自动更新
 const uiStyles = computed(() => {
-  // 获取当前主题
   const currentTheme = theme.current.value;
-  // 获取主题颜色
   const themeColors = config.value.theme[currentTheme] || {};
 
   return {
-    // 信息栏配置
     infoBar: {
       backgroundColor:
         config.value.ui?.infoBar?.backgroundColor || "transparent",
@@ -772,13 +535,10 @@ const uiStyles = computed(() => {
         mem: config.value.ui?.infoBar?.colors?.mem || "#a9ffb4",
       },
     },
-    // 命令行样式 - 从配置读取，主题颜色作为备选
     commandLine: {
-      // 文本格式选项
       boldPrompt: config.value.ui?.commandLine?.boldPrompt || false,
       italicPrompt: config.value.ui?.commandLine?.italicPrompt || false,
       underlinePrompt: config.value.ui?.commandLine?.underlinePrompt || false,
-      // 基本样式
       prompt:
         config.value.ui?.commandLine?.colors?.prompt ||
         themeColors.prompt ||
@@ -798,12 +558,10 @@ const uiStyles = computed(() => {
         config.value.ui?.commandLine?.colors?.command ||
         themeColors.command ||
         "#ffffff",
-      // 状态颜色
       error: config.value.ui?.commandLine?.colors?.error || "#ff0000",
       success: config.value.ui?.commandLine?.colors?.success || "#00ff00",
       warning: config.value.ui?.commandLine?.colors?.warning || "#ffff00",
       info: config.value.ui?.commandLine?.colors?.info || "#00ffff",
-      // 输出格式配色
       output: {
         dirItem: config.value.ui?.commandLine?.output?.dirItem || "#60a5fa",
         fileItem: config.value.ui?.commandLine?.output?.fileItem || "#fbbf24",
@@ -813,7 +571,6 @@ const uiStyles = computed(() => {
         treeLine: config.value.ui?.commandLine?.output?.treeLine || "#6b7280",
       },
     },
-    // 主题配置
     theme: {
       current: currentTheme,
       available: config.value.theme.available,
@@ -822,14 +579,11 @@ const uiStyles = computed(() => {
   };
 });
 
-// 信息栏配色状态（保留原有接口，确保兼容性）
 const infoBarColors = computed(() => uiStyles.value.infoBar);
 
-// 监听主题变化，更新所有已渲染的文档内容
 watch(
   () => theme.current.value,
   (newTheme) => {
-    // 更新所有已渲染的文档内容的主题
     conversations.value.forEach((conversation) => {
       conversation.output.forEach((outputItem) => {
         if (outputItem.type === "glow") {
@@ -840,18 +594,14 @@ watch(
   }
 );
 
-// 监听命令输入变化，当用户删除文件名时清除补全状态
 watch(
   () => command.value,
   (newValue, oldValue) => {
-    // 只有当补全列表显示时才需要检查
     if (tabCompleteState.value.showAll) {
       const newParts = newValue.split(" ");
       const oldParts = oldValue.split(" ");
 
-      // 检查命令是否相同
       if (newParts[0] !== oldParts[0]) {
-        // 命令改变了，清除补全状态
         tabCompleteState.value = {
           currentCmd: "",
           currentArg: "",
@@ -864,21 +614,15 @@ watch(
         return;
       }
 
-      // 检查参数是否发生了变化（不只是补全项的切换）
       if (newParts.length <= 2 && oldParts.length <= 2) {
         const newArg = newParts[1] || "";
-        const oldArg = oldParts[1] || "";
-
-        // 获取当前命令的所有补全项
         const allItems = getCompletionItems(newParts[0], currentDir.value, "");
-        // 过滤匹配原始前缀的项
         const matchingItems = tabCompleteState.value.originalArg
           ? allItems.filter((item) =>
               item.startsWith(tabCompleteState.value.originalArg)
             )
           : allItems;
 
-        // 如果当前参数为空，或者不是任何匹配项的前缀，清除补全状态
         if (!newArg || !matchingItems.some((item) => item.startsWith(newArg))) {
           tabCompleteState.value = {
             currentCmd: "",
@@ -891,7 +635,6 @@ watch(
           };
         }
       } else {
-        // 命令参数数量改变了，清除补全状态
         tabCompleteState.value = {
           currentCmd: "",
           currentArg: "",
@@ -906,17 +649,14 @@ watch(
   }
 );
 
-// 命令执行相关
-const isCommandExecuting = ref(false); // 跟踪命令是否正在执行
+const isCommandExecuting = ref(false);
 
-// 历史命令相关
 const history = {
-  commands: ref([]), // 存储历史命令的数组
-  index: ref(-1), // 当前历史命令索引，-1表示当前输入
-  temp: ref(""), // 临时存储当前输入，用于历史命令切换
+  commands: ref([]),
+  index: ref(-1),
+  temp: ref(""),
 };
 
-// 加载历史命令从localStorage
 const loadHistory = () => {
   const savedHistory = localStorage.getItem("terminalHistory");
   if (savedHistory) {
@@ -931,26 +671,21 @@ const loadHistory = () => {
   }
 };
 
-// 保存历史命令到localStorage
 const saveHistory = () => {
-  // 限制历史命令数量为20条
   const limitedHistory = history.commands.value.slice(-20);
   localStorage.setItem("terminalHistory", JSON.stringify(limitedHistory));
 };
 
-// 清除历史命令
 const clearHistory = () => {
   history.commands.value = [];
   localStorage.removeItem("terminalHistory");
 };
 
-// 更新内存信息
 const updateMemoryInfo = () => {
-  // 只使用performance.memory API获取当前网页的堆内存占用
   if (performance && performance.memory) {
     const memInfo = performance.memory;
-    const used = Math.round(memInfo.usedJSHeapSize / 1024 / 1024); // MB
-    const total = Math.round(memInfo.totalJSHeapSize / 1024 / 1024); // MB
+    const used = Math.round(memInfo.usedJSHeapSize / 1024 / 1024);
+    const total = Math.round(memInfo.totalJSHeapSize / 1024 / 1024);
     const percent = Math.round((used / total) * 100);
 
     memoryInfo.usage.value = used.toString();
@@ -959,7 +694,6 @@ const updateMemoryInfo = () => {
   }
 };
 
-// 简单的CPU使用率估算（使用requestAnimationFrame时间差）
 let lastTimestamp = 0;
 let cpuUsage = 0;
 let frameCount = 0;
@@ -968,16 +702,13 @@ const updateCpuInfo = () => {
   const now = performance.now();
   if (lastTimestamp > 0) {
     const frameTime = now - lastTimestamp;
-    // 假设60fps的理想帧时间是16.67ms
     const idealFrameTime = 16.67;
-    // 计算CPU使用率（实际使用时间/理想时间，上限100%）
     cpuUsage = Math.min(100, Math.round((frameTime / idealFrameTime) * 100));
     cpuInfo.value = `${cpuUsage}%`;
   }
   lastTimestamp = now;
   frameCount++;
 
-  // 每10帧更新一次CPU显示，避免过于频繁更新
   if (frameCount % 10 === 0) {
     requestAnimationFrame(updateCpuInfo);
   } else {
@@ -985,10 +716,8 @@ const updateCpuInfo = () => {
   }
 };
 
-// 当前正在执行的对话引用
 let currentConversation = null;
 
-// 更新时间
 const updateTime = () => {
   const now = new Date();
   currentTime.value = now.toLocaleTimeString("en-US", {
@@ -998,7 +727,6 @@ const updateTime = () => {
     hourCycle: "h12",
   });
 
-  // 更新星期几缓存
   const days = [
     "Sunday",
     "Monday",
@@ -1013,97 +741,20 @@ const updateTime = () => {
   updateMemoryInfo();
 };
 
-// 从JSON文件加载文章数据
-const articles = {
-  "/": {
-    type: "dir",
-    content: postsData.posts,
-  },
-};
-
-// 递归构建所有目录的articles对象
-function buildArticles(dirPath, content) {
-  content.forEach((item) => {
-    if (item.type === "dir" && item.content) {
-      const fullPath =
-        dirPath === "/" ? `/${item.name}` : `${dirPath}/${item.name}`;
-      articles[fullPath] = {
-        type: "dir",
-        content: item.content,
-      };
-      // 递归构建子目录
-      buildArticles(fullPath, item.content);
-    }
-  });
-}
-
-// 构建所有目录
-buildArticles("/", postsData.posts);
-
-// 从posts.json中获取文章信息的辅助函数
-const getArticleInfo = (fileName) => {
-  // 首先在当前目录查找
-  const currentContent = articles[currentDir.value];
-  if (currentContent && currentContent.type === "dir") {
-    // 在当前目录查找
-    const currentFile = currentContent.content.find(
-      (item) => item.type === "file" && item.name === fileName
-    );
-    if (currentFile) {
-      return currentFile;
-    }
-  }
-
-  // 如果当前目录没有找到，再递归查找整个postsData.posts
-  // 递归查找文章
-  function findArticle(content) {
-    for (const item of content) {
-      if (item.type === "file" && item.name === fileName) {
-        return item;
-      }
-      if (item.type === "dir" && item.content) {
-        const found = findArticle(item.content);
-        if (found) {
-          return found;
-        }
-      }
-    }
-    return null;
-  }
-
-  return findArticle(postsData.posts);
-};
-
-// 检查补全项是否为目录
-const isDir = (itemName) => {
-  const currentContent = articles[currentDir.value];
-  if (currentContent && currentContent.type === "dir") {
-    return currentContent.content.some(
-      (item) => item.name === itemName && item.type === "dir"
-    );
-  }
-  return false;
-};
-
-// 执行命令
 const executeCommand = async () => {
   if (!command.value.trim()) return;
 
-  // 设置命令正在执行状态，隐藏输入行
   isCommandExecuting.value = true;
 
   const cmd = command.value.trim();
 
-  // 添加到历史命令数组（去重，避免连续重复命令）
   if (history.commands.value[history.commands.value.length - 1] !== cmd) {
     history.commands.value.push(cmd);
-    saveHistory(); // 保存历史命令到localStorage
+    saveHistory();
   }
-  // 重置历史索引
   history.index.value = -1;
   history.temp.value = "";
 
-  // 重置补全状态
   tabCompleteState.value = {
     currentCmd: "",
     currentArg: "",
@@ -1114,11 +765,9 @@ const executeCommand = async () => {
     firstTab: true,
   };
 
-  // 保存命令执行时的时间和目录
   const commandTime = currentTime.value;
   const commandDir = currentDir.value;
 
-  // 创建新的对话对象
   const newConversation = {
     id: Date.now(),
     command: {
@@ -1129,20 +778,15 @@ const executeCommand = async () => {
     output: [],
   };
 
-  // 添加到对话数组
   conversations.value.push(newConversation);
-  // 设置当前对话引用
   currentConversation = newConversation;
 
   const args = cmd.split(" ");
   const cmdName = args[0];
   const cmdArgs = args.slice(1);
 
-  // 执行命令，确保所有命令执行完毕后才显示新的输入行
   try {
-    // 统一化命令执行
     if (commands[cmdName]) {
-      // 创建命令上下文对象，包含所有可能需要的参数
       const context = {
         articles,
         currentDir: currentDir.value,
@@ -1158,15 +802,12 @@ const executeCommand = async () => {
         uiStyles,
         conversations,
         showWelcome,
-        clearHistory, // 添加清除历史命令的函数
-        updateTomlConfig, // 添加TOML配置更新函数
-        reloadConfig: loadConfig, // 添加重新加载配置函数
+        clearHistory,
+        updateTomlConfig,
+        reloadConfig: loadConfig,
       };
 
-      // 获取命令处理函数
       const commandHandler = commands[cmdName];
-
-      // 执行命令，直接将context对象和命令参数传递给命令处理函数
       await commandHandler(context, ...cmdArgs);
     } else {
       if (currentConversation) {
@@ -1178,50 +819,36 @@ const executeCommand = async () => {
       }
     }
   } finally {
-    // 命令执行完毕后清空命令输入框
     command.value = "";
-    // 设置命令执行完毕状态，显示输入行
     isCommandExecuting.value = false;
-    // 等待DOM更新后执行滚动和聚焦
     await nextTick();
-    // 滚动到底部，确保看到最新输出
     await scrollToBottom();
-    // 聚焦到输入框
     focusInput();
   }
 };
 
-// 获取目录图标
 const getDirIcon = () => {
   return "";
 };
 
-// 获取星期几
 const getDayOfWeek = () => {
   return currentDayOfWeek.value;
 };
 
-// 移除重复的getBrowserType和getOsType函数，直接使用browserInfo对象中的方法
-// 移除未使用的getBatteryStatus函数
-
-// 聚焦到输入框
 const focusInput = () => {
   if (inputRef.value) {
     inputRef.value.focus();
   }
 };
 
-// 处理上下键切换历史命令
 const handleHistory = (direction) => {
   if (history.commands.value.length === 0) return;
 
-  // 当第一次按上键时，保存当前输入
   if (history.index.value === -1) {
     history.temp.value = command.value;
   }
 
   if (direction === "up") {
-    // 向上切换，索引增加
     if (history.index.value < history.commands.value.length - 1) {
       history.index.value++;
       command.value =
@@ -1230,7 +857,6 @@ const handleHistory = (direction) => {
         ];
     }
   } else if (direction === "down") {
-    // 向下切换，索引减少
     if (history.index.value > 0) {
       history.index.value--;
       command.value =
@@ -1238,13 +864,11 @@ const handleHistory = (direction) => {
           history.commands.value.length - 1 - history.index.value
         ];
     } else if (history.index.value === 0) {
-      // 回到初始状态，恢复临时保存的命令
       history.index.value = -1;
       command.value = history.temp.value;
     }
   }
 
-  // 聚焦到输入框并将光标移动到末尾
   nextTick(() => {
     if (inputRef.value) {
       inputRef.value.focus();
@@ -1256,38 +880,27 @@ const handleHistory = (direction) => {
   });
 };
 
-// 通用补全函数
 const handleGenericCompletion = (currentCmd, currentArg, allItems) => {
-  // 如果没有匹配项，直接返回
-  if (allItems.length === 0) {
-    return;
-  }
+  if (allItems.length === 0) return;
 
-  // 检查是否是连续的Tab键按下
   const isSameCommand = tabCompleteState.value.currentCmd === currentCmd;
   const isInSameCompletion = tabCompleteState.value.showAll;
 
-  // 确定使用哪个前缀来过滤匹配项
   const prefixToUse = isInSameCompletion
     ? tabCompleteState.value.originalArg
     : currentArg;
 
-  // 过滤匹配前缀的项
   const matchingItems = prefixToUse
     ? allItems.filter((item) => item.startsWith(prefixToUse))
     : allItems;
 
-  if (matchingItems.length === 0) {
-    return;
-  }
+  if (matchingItems.length === 0) return;
 
-  // 检查状态是否匹配当前命令和参数
   if (!isSameCommand || !isInSameCompletion) {
-    // 重置状态
     tabCompleteState.value = {
       currentCmd: currentCmd,
       currentArg: currentArg,
-      originalArg: currentArg, // 保存原始前缀
+      originalArg: currentArg,
       items: matchingItems,
       index: -1,
       showAll: false,
@@ -1295,75 +908,49 @@ const handleGenericCompletion = (currentCmd, currentArg, allItems) => {
     };
   }
 
-  // 第一次按Tab键，显示所有补全选项
   if (tabCompleteState.value.firstTab) {
     tabCompleteState.value.showAll = true;
     tabCompleteState.value.firstTab = false;
     tabCompleteState.value.index = 0;
-
-    // 应用第一个补全项
     command.value = `${currentCmd} ${matchingItems[0]}`;
-  }
-  // 后续按Tab键，循环补全
-  else {
-    // 计算下一个索引
+  } else {
     tabCompleteState.value.index =
       (tabCompleteState.value.index + 1) % matchingItems.length;
-
-    // 应用补全
     command.value = `${currentCmd} ${
       matchingItems[tabCompleteState.value.index]
     }`;
   }
 };
 
-// Tab键补全功能 - 实现按顺序循环补全
 const handleTabComplete = () => {
   const cmd = command.value;
   const parts = cmd.split(" ");
 
-  // 处理命令补全（只补全命令，不补全文件夹）
   if (parts.length === 1) {
     const cmdPrefix = parts[0];
     const basicCommands = ["ls", "cd", "cat"];
 
-    // 当输入框为空或只有ls、cd、cat之一时，循环切换这三个基础命令
     if (cmdPrefix === "" || basicCommands.includes(cmdPrefix)) {
-      // 查找当前命令在列表中的位置
       let currentIndex = basicCommands.indexOf(command.value);
-
-      // 如果当前命令不在列表中（比如输入框为空），从第一个开始；否则循环到下一个
       let nextIndex =
         currentIndex === -1 ? 0 : (currentIndex + 1) % basicCommands.length;
-
-      // 应用补全
       command.value = basicCommands[nextIndex];
       return;
     }
 
-    // 从命令对象中获取所有命令名称
     const commandNames = Object.keys(commands).sort();
-
-    // 过滤匹配前缀的命令
     let matchingCommands = commandNames.filter((cmdName) =>
       cmdName.startsWith(cmdPrefix)
     );
 
     if (matchingCommands.length === 0) return;
-
-    // 查找当前命令在匹配列表中的位置
     let currentIndex = matchingCommands.indexOf(cmdPrefix);
-
-    // 如果当前命令不在列表中，从第一个开始；否则循环到下一个
     let nextIndex =
       currentIndex === -1 ? 0 : (currentIndex + 1) % matchingCommands.length;
-
-    // 应用补全
     command.value = matchingCommands[nextIndex];
     return;
   }
 
-  // 处理cd、cat、wget、ls命令的参数补全
   if (
     (parts[0] === "cd" ||
       parts[0] === "cat" ||
@@ -1371,40 +958,23 @@ const handleTabComplete = () => {
       parts[0] === "ls") &&
     parts.length <= 2
   ) {
-    // 获取当前命令和参数
     const currentCmd = parts[0];
     const currentArg = parts.length === 2 ? parts[1] : "";
-
-    // 获取当前目录下的所有可能补全项
     const allItems = getCompletionItems(currentCmd, currentDir.value, "");
-
-    // 直接使用通用补全函数处理补全
     handleGenericCompletion(currentCmd, currentArg, allItems);
   } else if (parts[0] === "theme" && parts.length <= 2) {
-    // 处理theme命令的参数补全
-    // 获取所有可用主题作为候选项
     const allThemes = theme.available.value;
     const currentCmd = parts[0];
     const currentArg = parts.length === 2 ? parts[1] : "";
-
-    // 使用通用补全函数
     handleGenericCompletion(currentCmd, currentArg, allThemes);
   } else if (parts[0] === "background" && parts.length <= 2) {
-    // 处理background命令的参数补全
     const currentCmd = parts[0];
     const currentArg = parts.length === 2 ? parts[1] : "";
-
-    // background命令的子命令列表
     const backgroundSubcommands = ["opacity", "image"];
-
-    // 使用通用补全函数进行子命令补全
     handleGenericCompletion(currentCmd, currentArg, backgroundSubcommands);
   } else if (parts[0] === "font" && parts.length <= 2) {
-    // 处理font命令的参数补全
     const currentCmd = parts[0];
     const currentArg = parts.length === 2 ? parts[1] : "";
-
-    // font命令的可用字体列表，包括default选项
     const availableFonts = [
       "0xProto Nerd Font",
       "Fira Code",
@@ -1412,46 +982,29 @@ const handleTabComplete = () => {
       "JetBrains Mono",
       "default",
     ];
-
-    // 使用通用补全函数进行字体补全
     handleGenericCompletion(currentCmd, currentArg, availableFonts);
   } else if (parts[0] === "vi" && parts.length <= 2) {
-    // 处理vi命令的参数补全
     const currentCmd = parts[0];
     const currentArg = parts.length === 2 ? parts[1] : "";
-
-    // 获取当前目录下的所有文件
     const allItems = getCompletionItems(currentCmd, currentDir.value, "");
-
-    // 过滤出.md文件
     const mdItems = allItems.filter((item) => item.endsWith(".md"));
-
-    // 创建vi命令的补全列表，包括.md文件
     let viItems = [...mdItems];
-
-    // 只有在根目录下才添加config.toml到补全列表
     if (currentDir.value === "/") {
-      // 检查config.toml是否已经在列表中，如果不在则添加
       if (!viItems.includes("config.toml")) {
         viItems.push("config.toml");
       }
     }
-
-    // 使用通用补全函数进行补全，传递未过滤的项，让通用函数自己处理过滤
     handleGenericCompletion(currentCmd, currentArg, viItems);
   }
 };
 
-// 滚动到底部 - 改为异步函数，确保等待DOM更新
 const scrollToBottom = async () => {
-  // 使用Vue.nextTick确保DOM更新后执行滚动
   await nextTick();
   if (terminalRef.value) {
     terminalRef.value.scrollTop = terminalRef.value.scrollHeight;
   }
 };
 
-// 检测是否为移动设备的辅助函数
 const detectMobile = () => {
   return (
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -1460,51 +1013,35 @@ const detectMobile = () => {
   );
 };
 
-// 页面加载时自动执行命令
 onMounted(async () => {
   updateTime();
   const timeInterval = setInterval(updateTime, 60000);
-
-  // 启动CPU使用率更新循环
   requestAnimationFrame(updateCpuInfo);
-
-  // 检测设备类型
   isMobile.value = detectMobile();
 
-  // 监听窗口大小变化，动态更新设备类型
   const handleResize = () => {
     isMobile.value = detectMobile();
   };
   window.addEventListener("resize", handleResize);
 
-  // 注册onUnmounted钩子在await之前
   onUnmounted(() => {
     clearInterval(timeInterval);
     window.removeEventListener("resize", handleResize);
   });
 
-  // 加载历史命令
   loadHistory();
-
-  // 初始化应用配置（先加载config.toml，再加载localStorage设置）
   await initApp();
 
-  // 封装自动执行命令的函数
   const autoExecuteCommands = async (commandsStr) => {
-    // 将命令字符串按|分割成命令数组
     const commandsList = commandsStr.split("|");
-
-    // 遍历命令数组，依次执行每个命令
     for (const cmdStr of commandsList) {
       const cmd = cmdStr.trim();
       if (!cmd) continue;
 
-      // 解析命令和参数
       const args = cmd.split(" ");
       const cmdName = args[0];
       const cmdArgs = args.slice(1);
 
-      // 创建新的对话对象
       const newConversation = {
         id: Date.now() + Math.random(),
         command: {
@@ -1515,15 +1052,11 @@ onMounted(async () => {
         output: [],
       };
 
-      // 添加到对话数组
       conversations.value.push(newConversation);
-      // 设置当前对话引用
       currentConversation = newConversation;
 
       try {
-        // 执行命令
         if (commands[cmdName]) {
-          // 创建命令上下文对象
           const context = {
             articles,
             currentDir: currentDir.value,
@@ -1539,8 +1072,6 @@ onMounted(async () => {
             conversations,
             showWelcome,
           };
-
-          // 执行命令
           await commands[cmdName](context, ...cmdArgs);
         } else {
           currentConversation.output.push({
@@ -1554,16 +1085,12 @@ onMounted(async () => {
           content: `Error executing command: ${error.message}`,
         });
       }
-
-      // 等待DOM更新后滚动到底部
       await scrollToBottom();
       await nextTick();
     }
   };
 
-  // 检查是否有terminalHistory，如果没有则自动执行命令
   if (history.commands.value.length === 0) {
-    // 自动执行命令
     await autoExecuteCommands("cat Readme.md|tree");
   }
 });

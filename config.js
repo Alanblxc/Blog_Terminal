@@ -3,7 +3,7 @@ import path from "path";
 import { parse } from "@iarna/toml";
 
 // 配置
-const POSTS_DIR = "./post";
+const POSTS_DIR = "./public/post";
 const OUTPUT_FILE = "./posts.json";
 
 // 读取目录结构
