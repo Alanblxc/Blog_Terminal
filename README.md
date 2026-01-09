@@ -48,10 +48,10 @@ npm run deploy
 ## 项目结构
 
 ```
-├── src/                    # 源代码目录
-│   ├── components/         # Vue 组件
-│   ├── commands/           # 命令处理函数
-│   ├── composables/        # 组合式函数 (逻辑封装)
+├── src/
+│   ├── components/         # Vue 组件 (Welcome.vue)
+│   ├── commands/           # 命令处理函数 (index.js, read.js, vi.js)
+│   ├── composables/        # 组合式函数 (CommandAPI.js, fileSystem.js, useConfig.js, useTerminal.js, utils.js)
 │   ├── App.vue             # 主应用组件
 │   └── main.js             # 入口文件
 ├── public/                 # 静态资源目录
@@ -60,7 +60,8 @@ npm run deploy
 ├── config.js               # 自动化脚本 (生成 posts.json 并处理资源复制)
 ├── config.toml             # 应用配置文件 (用户可自定义界面和功能)
 ├── vite.config.js          # Vite 配置文件
-└── package.json            # 项目依赖和脚本
+├── package.json            # 项目依赖和脚本
+└── test-persistence.js     # 测试脚本
 ```
 
 ## 命令说明
@@ -77,15 +78,33 @@ npm run deploy
 
 在应用中可以使用以下命令：
 
+**文件与导航**
 - `ls` - 列出目录内容
 - `cd <dir>` - 切换目录
-- `cat <file>` - 查看文件内容
-- `tree` - 显示目录结构
-- `help` - 查看帮助信息
+- `tree` - 显示完整目录结构
+- `find <term>` - 搜索文章名称
+- `wget <file>` - 下载文件
+- `cat <file>` - 查看文件内容 (简单模式)
+
+**阅读与编辑**
+- `read <file>` - 全屏阅读器 (支持 TOC/搜索/主题切换)
+- `vi <file>` - 文本编辑器 (支持编辑 config.toml)
+
+**系统与设置**
+- `help` - 查看帮助信息 (`help -l` 查看详细帮助)
 - `clear` - 清空终端
-- `size <num>` - 设置字体大小
-- `background` - 设置背景
-- `theme <name>` - 切换主题
+- `size <num|default>` - 设置字体大小
+- `font [name]` - 设置字体 (支持 Nerd Fonts)
+- `background [opacity|image]` - 设置背景透明度或图片
+- `theme <name>` - 切换终端配色主题
+- `theme read <name>` - 切换阅读器主题
+
+**网络与工具**
+- `ipconfig` - 显示网络配置信息
+- `ping <host>` - 网络连通性测试
+- `echo <msg>` - 打印消息
+- `test-config` - 测试配置加载状态
+- `clear-config` - 重置所有配置和历史记录
 
 ## 文章管理
 
