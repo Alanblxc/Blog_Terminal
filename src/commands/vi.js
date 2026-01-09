@@ -30,10 +30,13 @@ class FullScreenEditor {
     // 核心配置
     this.lineHeight = 24; 
     this.font = "'Cascadia Code', 'Consolas', 'Menlo', 'Monaco', 'Courier New', monospace";
+    this._boundHandleResize = null;
+    this.isActive = false; // 标记编辑器是否处于活跃状态
   }
 
   async open(content) {
     this.content = content;
+    this.isActive = true;
     this._createDOM();
     this._bindEvents();
     this._switchMode("NORMAL");
@@ -41,8 +44,10 @@ class FullScreenEditor {
     this._updateUI();
 
     requestAnimationFrame(() => {
-        this._updateUI();
-        this._adjustScrollbarGap();
+        if (this.isActive) {
+          this._updateUI();
+          this._adjustScrollbarGap();
+        }
     });
 
     return new Promise((resolve) => {
@@ -51,6 +56,7 @@ class FullScreenEditor {
   }
 
   close() {
+    this.isActive = false;
     this._cleanup();
     if (this.options.onExit) this.options.onExit();
     if (this.resolvePromise) this.resolvePromise();
@@ -212,7 +218,8 @@ class FullScreenEditor {
       this._adjustScrollbarGap();
     });
     
-    window.addEventListener("resize", () => this._adjustScrollbarGap());
+    this._boundHandleResize = () => this._adjustScrollbarGap();
+    window.addEventListener("resize", this._boundHandleResize);
 
     this.textarea.addEventListener("keydown", (e) => this._handleEditorKeydown(e));
     this.textarea.addEventListener("click", () => this._updateCursor());
@@ -541,6 +548,10 @@ class FullScreenEditor {
   }
 
   _cleanup() {
+    if (this._boundHandleResize) {
+      window.removeEventListener("resize", this._boundHandleResize);
+      this._boundHandleResize = null;
+    }
     if (this.overlay && this.overlay.parentNode) {
       document.body.removeChild(this.overlay);
     }
@@ -582,7 +593,7 @@ const vi = async (rawContext, ...args) => {
         );
 
         if (fileInfo) {
-          const response = await fetch(fileInfo.path.replace("./", "/"));
+          const response = await fetch(fileInfo.path);
           if (response.ok) {
             content = await response.text();
             isReadOnly = true;

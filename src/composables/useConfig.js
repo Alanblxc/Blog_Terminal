@@ -58,7 +58,7 @@ const defaultConfig = {
       },
     },
   },
-  background: { image: "/background.jpg", opacity: "0.9" },
+  background: { image: "/public/background.jpg", opacity: "0.9" },
   theme: {
     current: "default",
     available: ["default", "dark", "light", "solarized", "dracula"],
@@ -103,7 +103,23 @@ export function useConfig() {
     family: computed(() => config.value.ui.fontFamily || "Cascadia Code"),
   };
   const background = {
-    image: computed(() => config.value.background.image),
+    image: computed(() => {
+      const img = config.value.background.image;
+      // 如果是绝对 URL (http/https/data) 或相对路径 (不以 / 开头)，直接返回
+      if (/^(https?:|data:|\.)/.test(img)) return img;
+      
+      // 如果是以 / 开头的绝对路径，尝试拼接当前 URL 的路径部分（用于支持非根目录部署）
+      if (img.startsWith("/")) {
+        // 获取当前页面的 base URL（去除末尾的文件名，如 index.html）
+        const baseUrl = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+        // 去掉 img 开头的 /，防止双重斜杠
+        const relativePath = img.substring(1);
+        // 拼接
+        return `${window.location.origin}${baseUrl}${relativePath}`;
+      }
+      
+      return img;
+    }),
     opacity: computed(() => parseFloat(config.value.background.opacity)),
   };
   const asciiArt = computed(() => config.value.ascii?.art || "");
@@ -180,6 +196,7 @@ export function useConfig() {
         try {
           parse(cachedConfig);
         } catch (e) {
+          console.error("Cached config invalid, clearing cache:", e.message);
           localStorage.removeItem("terminalConfigToml");
           needsFresh = true;
         }
@@ -210,7 +227,8 @@ export function useConfig() {
         config.value = JSON.parse(JSON.stringify(merged));
       }
     } catch (e) {
-      console.warn("Load config failed, using default.", e);
+      console.error("Failed to load config.toml:", e);
+      console.warn("Falling back to default configuration.");
       config.value = JSON.parse(JSON.stringify(defaultConfig));
     }
   };

@@ -1,5 +1,5 @@
 
-import { ref, nextTick, watch } from "vue";
+import { ref, nextTick, watch, computed } from "vue";
 import commands from "../commands";
 import {
   getArticleInfo,
@@ -35,7 +35,7 @@ export function useTerminal(configContext) {
   // 环境变量存储
   const env = ref({
     HOME: "/",
-    USER: configContext.user?.value || "User",
+    USER: configContext.config?.value?.app?.user || "User",
     PATH: "/bin:/usr/bin",
     SHELL: "/bin/sh",
   });
@@ -151,6 +151,7 @@ export function useTerminal(configContext) {
           conversation: newConv,
           getArticleInfo,
           getDirIcon,
+          user: computed(() => configContext.config.value.app.user),
           fontSize,
           font,
           background,

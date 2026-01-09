@@ -165,7 +165,7 @@ error = "#ff5555"
 
 # 背景配置
 [background]
-image = "/background.jpg"
+image = "/public/background.jpg"
 opacity = "0.9"
 position = "center"
 size = "cover"

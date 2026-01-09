@@ -183,15 +183,15 @@ if (fs.existsSync(DIST_DIR)) {
   copyDirectory(publicSrc, publicDest);
   console.log(`✓ Copied public directory`);
 
-  // 2. 复制 posts.json -> dist/posts.json
-  // OUTPUT_FILE 已经在上面定义为 "./posts.json"
-  copyFile(OUTPUT_FILE, path.join(DIST_DIR, "posts.json"));
-
-  // 3. 复制 config.toml -> dist/config.toml
+  // 2. 复制 config.toml -> dist/config.toml
   copyFile("./config.toml", path.join(DIST_DIR, "config.toml"));
   
-  // 4. 复制 README.md (可选，但推荐)
+  // 3. 复制 README.md (可选，但推荐)
   copyFile("./README.md", path.join(DIST_DIR, "README.md"));
+
+  // 4. 创建 .nojekyll 文件以适配 GitHub Pages
+  fs.writeFileSync(path.join(DIST_DIR, ".nojekyll"), "");
+  console.log(`✓ Created: .nojekyll in ${DIST_DIR}`);
 
   console.log("\n✅ All build assets copied successfully!");
 } else {

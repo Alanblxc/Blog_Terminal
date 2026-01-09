@@ -175,7 +175,7 @@ class FullScreenReader {
       const nextFile = this.fileList[index];
       try {
           // 获取文件内容
-          const response = await fetch(nextFile.path.replace("./", "/"));
+          const response = await fetch(nextFile.path);
           if (response.ok) {
               const content = await response.text();
               this.currentFileIndex = index;
@@ -1027,7 +1027,7 @@ const read = async (rawContext, ...args) => {
         const fileInfo = fileList[currentIndex];
 
         if (fileInfo) {
-          const response = await fetch(fileInfo.path.replace("./", "/"));
+          const response = await fetch(fileInfo.path);
           if (response.ok) {
             content = await response.text();
             title = fileInfo.title || fileName;

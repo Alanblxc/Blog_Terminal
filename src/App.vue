@@ -309,14 +309,16 @@ const updateSysInfo = () => {
     "Saturday",
   ][now.getDay()];
 
-  if (performance?.memory) {
+  if (typeof performance !== 'undefined' && performance.memory) {
     const m = performance.memory;
     const used = Math.round(m.usedJSHeapSize / 1048576);
     const total = Math.round(m.totalJSHeapSize / 1048576);
+    // Prevent division by zero
+    const percent = total > 0 ? Math.round((used / total) * 100) : 0;
     memoryInfo.value = {
       usage: used,
       total,
-      percent: Math.round((used / total) * 100),
+      percent,
     };
   }
 

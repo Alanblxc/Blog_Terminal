@@ -148,7 +148,7 @@ const viewFile = async (rawContext, ...args) => {
   }
 
   try {
-    const response = await fetch(articleInfo.path.replace("./", "/"));
+    const response = await fetch(articleInfo.path);
     if (!response.ok) throw new Error("File not found");
     const content = await response.text();
     const parsedContent = marked(content);
@@ -684,13 +684,21 @@ const testConfig = async (rawContext, ...args) => {
   const cmd = new CommandAPI(rawContext, args);
   const { user, fontSize, background, theme } = cmd.raw; 
   
-  cmd.info(`当前配置:\n  用户: ${user.value}\n  字体大小: ${
-    fontSize.value
-  }\n  背景:\n    图片: ${background.image.value}\n    透明度: ${
-    background.opacity.value
-  }\n  主题: ${
-    theme.current.value
-  }\n  可用主题: ${theme.available.value.join(", ")}`);
+  const userInfo = user ? user.value : "Unknown";
+  const sizeInfo = fontSize ? fontSize.value : "Unknown";
+  const bgImage = background?.image ? background.image.value : "None";
+  const bgOpacity = background?.opacity ? background.opacity.value : "N/A";
+  const themeName = theme?.current ? theme.current.value : "Default";
+  const availableThemes = theme?.available ? theme.available.value.join(", ") : "N/A";
+
+  cmd.info(`当前配置:
+  用户: ${userInfo}
+  字体大小: ${sizeInfo}px
+  背景:
+    图片: ${bgImage}
+    透明度: ${bgOpacity}
+  主题: ${themeName}
+  可用主题: ${availableThemes}`);
 };
 
 // find 命令
@@ -794,39 +802,29 @@ const wget = async (rawContext, ...args) => {
 const clearConfig = async (rawContext, ...args) => {
   const cmd = new CommandAPI(rawContext, args);
   const {
-    fontSize,
-    font,
-    background,
-    theme,
-    uiStyles,
     conversations,
     clearHistory,
+    reloadConfig
   } = cmd.raw;
 
+  // 1. 清除所有本地存储的配置和历史
   localStorage.removeItem("terminalSettings");
   localStorage.removeItem("terminalHistory");
   localStorage.removeItem("terminalConfigToml");
+  localStorage.removeItem("terminalVFS");
 
-  if (fontSize) fontSize.value = "18";
-  if (font && font.family) font.family.value = "Cascadia Code";
-  if (background) {
-    if (background.image) background.image.value = "/background.jpg";
-    if (background.opacity) background.opacity.value = 0.9;
-  }
-  if (uiStyles && uiStyles.value && uiStyles.value.theme) {
-    uiStyles.value.theme.current = "default";
-  } else if (theme && theme.current) {
-    try {
-      theme.current.value = "default";
-    } catch (e) {}
-  }
-
+  // 2. 清除内存中的状态
   if (clearHistory) clearHistory();
-
-  cmd.success("所有配置和历史记录已清除！");
   if (conversations && conversations.value) {
     conversations.value = [];
   }
+
+  // 3. 重新加载默认配置
+  if (reloadConfig) {
+    await reloadConfig();
+  }
+
+  cmd.success("所有配置和历史记录已清除！");
   cmd.info("所有设置已重置为默认值。");
 };
 

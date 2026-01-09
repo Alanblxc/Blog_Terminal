@@ -147,7 +147,7 @@ export class CommandAPI {
     // 3. 读取真实文章文件
     const fileInfo = this.getFile(name);
     if (fileInfo && fileInfo.path) {
-      const response = await fetch(fileInfo.path.replace("./", "/"));
+      const response = await fetch(fileInfo.path);
       if (response.ok) return await response.text();
     }
     
