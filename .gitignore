@@ -1,0 +1,52 @@
+# Logs
+logs
+*.log
+debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build files
+posts.json
+
+# Temporary files
+*.tmp
+*.temp
+
+# Ignore trea folder
+.trea
+.trae/
+
+# Ignore post folder except for specific subfolders
+/post/*
+!/post/life/
+!/post/study/
+!/post/tech/
+
+# AI generated documentation
+Ai_document/
+test-report.md
+public/post/Alan/READ_DEV_GUIDE.md

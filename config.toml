@@ -1,0 +1,185 @@
+# 终端博客配置文件
+# 此文件包含应用的所有可配置项，便于用户自定义
+
+# 应用基本配置
+[app]
+user = "Alan"
+
+# 欢迎语配置
+[welcome]
+title = "Welcome to My Terminal Blog"
+welcomeMsg = " Type 'ls' to see categories, 'cat file.md' to read articles, 'tree' to see directory structure"
+helpMsg = "󰋗 Type 'help' for available commands"
+
+# ASCII字符画配置
+[ascii]
+art = """
+ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@##******#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%*+===============+%#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@@@@@@##++++===+================+#@@@@@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@@@@@+++++++++++==+==+=======+=++++%@@@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@@@+++++++++++++++===========++++++++%@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@#+++++++++=+++++=====+=====+++++++++++@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@%+++==------------==========++++++++++++#@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@%+=-------------------========++++++++++++@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@=-----------------------========++++++++++#@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@-----------------+######+-========+++++++++@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@=---------------:##########==========++++++*@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@=-------------::*##########%===============@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@=------------::::@#########==============+#@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@#-----------:::::%@######*==============+@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@-----------::::::+@#######===========##@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@%----------::::::::*####@@@@@#####@#@@@@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@%---------::::::::::+%@@@@@@#####@#@@@@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@#=-------::::::::::::::***%###%**+::-#@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@@@=-------:::::::::::::::::::::::::-@@@@@@@@@@@@@@@@@@@@@@@ 
+ @@@@@@@@@@@@@@@@@@@@@@@@@=-------:::::::::::::::::::::-@######################## 
+ @@@@@@@@@@@@@@@@@@@@@@@@@@##------::::::::::::::::::##@######################### 
+ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%*------:::::::::-**@@@@@######################### 
+ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#####@#%+**+%#@@#@@@@@@@@######################### 
+ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#################@@@@@@@@######################### 
+ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#################@@@@@@@@######################### 
+ """
+
+# UI相关配置
+[ui]
+fontSize = "18"
+fontFamily = "Consolas, Monaco, 'Courier New', monospace"
+
+# 信息栏样式配置
+[ui.infoBar]
+backgroundColor = "transparent"
+textColor = "#e2e8f0"
+borderColor = "transparent"
+height = "24px"
+padding = "0 10px"
+
+# 信息栏显示模板（分为左右两栏）
+# 可用变量: {user}, {dayOfWeek}, {time}, {latency}, {cpu}, {mem}, {memUsage}, {memTotal}
+leftTemplate = "{user} on {dayOfWeek} at {time}"
+rightTemplate = "{latency}  MEM: {mem}% ({memUsage}/{memTotal}GB)"
+
+# 信息栏各元素配色
+[ui.infoBar.colors]
+username = "#ffbebc"
+dayOfWeek = "#bc93ff"
+commandTime = "#bc93ff"
+latency = "#a9ffb4"
+cpu = "#ce9178"
+mem = "#a9ffb4"
+
+# 命令行样式配置
+[ui.commandLine]
+# 提示符样式
+promptSymbol = "$"
+promptSymbolColor = "#ec4899"
+
+# 文本格式选项
+boldPrompt = false
+italicPrompt = false
+underlinePrompt = false
+
+# 命令行元素配色
+[ui.commandLine.colors]
+prompt = "#3b82f6"
+directory = "#60a5fa"
+file = "#fbbf24"
+command = "#ffffff"
+error = "#ff0000"
+success = "#00ff00"
+warning = "#ffff00"
+info = "#00ffff"
+
+# 输出格式配色
+[ui.commandLine.output]
+dirItem = "#60a5fa"
+fileItem = "#fbbf24"
+error = "#ff0000"
+help = "#a9ffb4"
+listItem = "#ffffff"
+treeLine = "#6b7280"
+
+
+# 主题配置
+[theme]
+current = "default"
+available = ["default", "dark", "light", "solarized", "dracula", "custom"]
+
+# 自定义主题配色
+[theme.custom]
+background = "#1a1a2e"
+text = "#ffffff"
+prompt = "#00ff41"
+command = "#00bfff"
+directory = "#ff6b6b"
+file = "#4ecdc4"
+error = "#ff0055"
+
+# 预设主题配色
+[theme.default]
+background = "#000000"
+text = "#ffffff"
+prompt = "#3b82f6"
+command = "#ffffff"
+directory = "#60a5fa"
+file = "#fbbf24"
+error = "#ff0000"
+
+[theme.dark]
+background = "#1a1a1a"
+text = "#d4d4d4"
+prompt = "#4ec9b0"
+command = "#569cd6"
+directory = "#4ec9b0"
+file = "#9cdcfe"
+error = "#f44747"
+
+[theme.light]
+background = "#ffffff"
+text = "#000000"
+prompt = "#007acc"
+command = "#0000ff"
+directory = "#007acc"
+file = "#0000ff"
+error = "#ff0000"
+
+[theme.solarized]
+background = "#002b36"
+text = "#839496"
+prompt = "#859900"
+command = "#268bd2"
+directory = "#268bd2"
+file = "#2aa198"
+error = "#dc322f"
+
+[theme.dracula]
+background = "#282a36"
+text = "#f8f8f2"
+prompt = "#50fa7b"
+command = "#bd93f9"
+directory = "#50fa7b"
+file = "#8be9fd"
+error = "#ff5555"
+
+# 背景配置
+[background]
+image = "/background.jpg"
+opacity = "0.9"
+position = "center"
+size = "cover"
+repeat = "no-repeat"
+
+# 下载文件配置
+[download.books]
+"vue3-guide.pdf" = "https://example.com/vue3-guide.pdf"
+"javascript-advanced.pdf" = "https://example.com/javascript-advanced.pdf"
+
+[download.tools]
+"terminal-theme.zip" = "https://example.com/terminal-theme.zip"
+"markdown-cheatsheet.pdf" = "https://example.com/markdown-cheatsheet.pdf"
+
+[download.images]
+"background-1.jpg" = "https://example.com/background-1.jpg"
+"background-2.jpg" = "https://example.com/background-2.jpg"
