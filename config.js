@@ -2,6 +2,20 @@ import fs from "fs";
 import path from "path";
 import { parse } from "@iarna/toml";
 
+// -------------------------------------------------------------------------
+// 缓存清理逻辑 (合并自 clean-cache.js)
+// -------------------------------------------------------------------------
+const cacheDir = path.join(process.cwd(), 'node_modules', '.cache', 'gh-pages');
+if (fs.existsSync(cacheDir)) {
+  console.log('🧹 Cleaning gh-pages cache to ensure fresh deployment...');
+  try {
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+    console.log('✅ gh-pages cache cleaned successfully.');
+  } catch (error) {
+    console.warn('⚠️  Failed to clean gh-pages cache:', error.message);
+  }
+}
+
 // 配置
 const POSTS_DIR = "./public/post";
 const OUTPUT_FILE = "./posts.json";
@@ -184,7 +198,11 @@ if (fs.existsSync(DIST_DIR)) {
   console.log(`✓ Copied public directory`);
 
   // 2. 复制 config.toml -> dist/config.toml
-  copyFile("./config.toml", path.join(DIST_DIR, "config.toml"));
+  const configDest = path.join(DIST_DIR, "config.toml");
+  if (fs.existsSync(configDest)) {
+    fs.unlinkSync(configDest);
+  }
+  copyFile("./config.toml", configDest);
   
   // 3. 复制 README.md (可选，但推荐)
   copyFile("./README.md", path.join(DIST_DIR, "README.md"));
