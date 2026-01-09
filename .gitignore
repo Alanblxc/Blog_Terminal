@@ -41,10 +41,10 @@ posts.json
 .trae/
 
 # Ignore post folder except for specific subfolders
-/post/*
-!/post/life/
-!/post/study/
-!/post/tech/
+/public/post/*
+!/public/post/life/
+!/public/post/study/
+!/public/post/tech/
 
 # AI generated documentation
 Ai_document/
