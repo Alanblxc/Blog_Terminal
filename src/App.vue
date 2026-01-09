@@ -135,6 +135,11 @@
                 v-for="item in outputItem.content"
                 :key="item.name"
                 class="dir-line"
+                :style="{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }"
               >
                 <span
                   v-if="item.type === 'dir'"
@@ -142,19 +147,27 @@
                   :style="{ color: uiStyles.commandLine.directory }"
                   >{{ item.icon }} {{ item.name }}</span
                 >
-                <span
+                <div
                   v-else-if="item.type === 'file'"
-                  class="file-item"
-                  :style="{ color: uiStyles.commandLine.file }"
+                  :style="{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    width: '100%',
+                  }"
                 >
-                  {{ item.icon }} {{ item.name }}
+                  <span
+                    class="file-item"
+                    :style="{ color: uiStyles.commandLine.file }"
+                    >{{ item.icon }} {{ item.name }}</span
+                  >
                   <span
                     v-if="item.name.endsWith('.md') && item.date"
                     class="file-date"
                     :style="{ color: '#94a3b8', marginLeft: '10px' }"
                     >{{ item.date }}</span
                   >
-                </span>
+                </div>
               </div>
             </div>
             <div
@@ -168,6 +181,13 @@
                 {{ outputItem.content.category }}
               </div>
               <div class="glow-body" v-html="outputItem.content.content"></div>
+            </div>
+            <div
+              v-else-if="outputItem.type === 'editor'"
+              class="editor-output"
+              ref="editorContainer"
+            >
+              <!-- 编辑器内容将通过JavaScript动态添加 -->
             </div>
             <div v-else>{{ outputItem.content }}</div>
           </div>
@@ -228,6 +248,41 @@
                 autofocus
                 class="command-content"
               />
+            </div>
+          </div>
+        </div>
+        <!-- 补全选项显示区域 -->
+        <div
+          v-if="!isCommandExecuting && tabCompleteState.showAll"
+          class="completion-output"
+        >
+          <div class="dir-output">
+            <div
+              v-for="item in tabCompleteState.items"
+              :key="item"
+              class="dir-line"
+              :style="{
+                backgroundColor:
+                  tabCompleteState.index ===
+                  tabCompleteState.items.indexOf(item)
+                    ? '#1e293b'
+                    : 'transparent',
+                padding: '2px 8px',
+                borderRadius: '3px',
+              }"
+            >
+              <span
+                v-if="isDir(item)"
+                class="dir-item"
+                :style="{ color: uiStyles.commandLine.directory }"
+                >📁 {{ item }}</span
+              >
+              <span
+                v-else
+                class="file-item"
+                :style="{ color: uiStyles.commandLine.file }"
+                >📄 {{ item }}</span
+              >
             </div>
           </div>
         </div>
@@ -575,8 +630,11 @@ const welcomeConfig = ref({
 const tabCompleteState = ref({
   currentCmd: "", // 当前命令
   currentArg: "", // 当前参数
+  originalArg: "", // 原始前缀（用于过滤匹配项）
   items: [], // 补全列表
   index: -1, // 当前补全索引
+  showAll: false, // 是否显示所有补全选项
+  firstTab: true, // 是否是第一次按Tab键
 });
 
 // 通用文件补全函数
@@ -823,6 +881,72 @@ watch(
   }
 );
 
+// 监听命令输入变化，当用户删除文件名时清除补全状态
+watch(
+  () => command.value,
+  (newValue, oldValue) => {
+    // 只有当补全列表显示时才需要检查
+    if (tabCompleteState.value.showAll) {
+      const newParts = newValue.split(" ");
+      const oldParts = oldValue.split(" ");
+
+      // 检查命令是否相同
+      if (newParts[0] !== oldParts[0]) {
+        // 命令改变了，清除补全状态
+        tabCompleteState.value = {
+          currentCmd: "",
+          currentArg: "",
+          originalArg: "",
+          items: [],
+          index: -1,
+          showAll: false,
+          firstTab: true,
+        };
+        return;
+      }
+
+      // 检查参数是否发生了变化（不只是补全项的切换）
+      if (newParts.length <= 2 && oldParts.length <= 2) {
+        const newArg = newParts[1] || "";
+        const oldArg = oldParts[1] || "";
+
+        // 获取当前命令的所有补全项
+        const allItems = getCompletionItems(newParts[0], currentDir.value, "");
+        // 过滤匹配原始前缀的项
+        const matchingItems = tabCompleteState.value.originalArg
+          ? allItems.filter((item) =>
+              item.startsWith(tabCompleteState.value.originalArg)
+            )
+          : allItems;
+
+        // 如果当前参数为空，或者不是任何匹配项的前缀，清除补全状态
+        if (!newArg || !matchingItems.some((item) => item.startsWith(newArg))) {
+          tabCompleteState.value = {
+            currentCmd: "",
+            currentArg: "",
+            originalArg: "",
+            items: [],
+            index: -1,
+            showAll: false,
+            firstTab: true,
+          };
+        }
+      } else {
+        // 命令参数数量改变了，清除补全状态
+        tabCompleteState.value = {
+          currentCmd: "",
+          currentArg: "",
+          originalArg: "",
+          items: [],
+          index: -1,
+          showAll: false,
+          firstTab: true,
+        };
+      }
+    }
+  }
+);
+
 // 命令执行相关
 const isCommandExecuting = ref(false); // 跟踪命令是否正在执行
 
@@ -1056,6 +1180,17 @@ const getArticleInfo = (fileName) => {
   return findArticle(postsData.posts);
 };
 
+// 检查补全项是否为目录
+const isDir = (itemName) => {
+  const currentContent = articles[currentDir.value];
+  if (currentContent && currentContent.type === "dir") {
+    return currentContent.content.some(
+      (item) => item.name === itemName && item.type === "dir"
+    );
+  }
+  return false;
+};
+
 // 执行命令
 const executeCommand = async () => {
   if (!command.value.trim()) return;
@@ -1078,8 +1213,11 @@ const executeCommand = async () => {
   tabCompleteState.value = {
     currentCmd: "",
     currentArg: "",
+    originalArg: "",
     items: [],
     index: -1,
+    showAll: false,
+    firstTab: true,
   };
 
   // 保存命令执行时的时间和目录
@@ -1128,6 +1266,7 @@ const executeCommand = async () => {
         showWelcome,
         clearHistory, // 添加清除历史命令的函数
         updateTomlConfig, // 添加TOML配置更新函数
+        reloadConfig: loadConfig, // 添加重新加载配置函数
       };
 
       // 获取命令处理函数
@@ -1230,61 +1369,57 @@ const handleGenericCompletion = (currentCmd, currentArg, allItems) => {
     return;
   }
 
-  // 情况1：有输入前缀，按前缀补全
-  if (currentArg) {
-    // 过滤匹配前缀的项
-    const matchingItems = allItems.filter((item) =>
-      item.startsWith(currentArg)
-    );
+  // 检查是否是连续的Tab键按下
+  const isSameCommand = tabCompleteState.value.currentCmd === currentCmd;
+  const isInSameCompletion = tabCompleteState.value.showAll;
 
-    if (matchingItems.length > 0) {
-      // 检查状态是否匹配当前命令和参数
-      if (
-        tabCompleteState.value.currentCmd !== currentCmd ||
-        !tabCompleteState.value.currentArg.startsWith(currentArg) ||
-        tabCompleteState.value.items.length === 0
-      ) {
-        // 重置状态
-        tabCompleteState.value = {
-          currentCmd: currentCmd,
-          currentArg: currentArg,
-          items: matchingItems,
-          index: -1,
-        };
-      }
+  // 确定使用哪个前缀来过滤匹配项
+  const prefixToUse = isInSameCompletion
+    ? tabCompleteState.value.originalArg
+    : currentArg;
 
-      // 计算下一个索引
-      tabCompleteState.value.index =
-        (tabCompleteState.value.index + 1) % matchingItems.length;
+  // 过滤匹配前缀的项
+  const matchingItems = prefixToUse
+    ? allItems.filter((item) => item.startsWith(prefixToUse))
+    : allItems;
 
-      // 应用补全
-      command.value = `${currentCmd} ${
-        matchingItems[tabCompleteState.value.index]
-      }`;
-    }
+  if (matchingItems.length === 0) {
+    return;
   }
-  // 情况2：没有输入前缀，按顺序循环补全
-  else {
-    // 检查状态是否匹配当前命令
-    if (
-      tabCompleteState.value.currentCmd !== currentCmd ||
-      tabCompleteState.value.items.length === 0
-    ) {
-      // 重置状态
-      tabCompleteState.value = {
-        currentCmd: currentCmd,
-        currentArg: currentArg,
-        items: allItems,
-        index: -1,
-      };
-    }
 
+  // 检查状态是否匹配当前命令和参数
+  if (!isSameCommand || !isInSameCompletion) {
+    // 重置状态
+    tabCompleteState.value = {
+      currentCmd: currentCmd,
+      currentArg: currentArg,
+      originalArg: currentArg, // 保存原始前缀
+      items: matchingItems,
+      index: -1,
+      showAll: false,
+      firstTab: true,
+    };
+  }
+
+  // 第一次按Tab键，显示所有补全选项
+  if (tabCompleteState.value.firstTab) {
+    tabCompleteState.value.showAll = true;
+    tabCompleteState.value.firstTab = false;
+    tabCompleteState.value.index = 0;
+
+    // 应用第一个补全项
+    command.value = `${currentCmd} ${matchingItems[0]}`;
+  }
+  // 后续按Tab键，循环补全
+  else {
     // 计算下一个索引
     tabCompleteState.value.index =
-      (tabCompleteState.value.index + 1) % allItems.length;
+      (tabCompleteState.value.index + 1) % matchingItems.length;
 
     // 应用补全
-    command.value = `${currentCmd} ${allItems[tabCompleteState.value.index]}`;
+    command.value = `${currentCmd} ${
+      matchingItems[tabCompleteState.value.index]
+    }`;
   }
 };
 
@@ -1349,52 +1484,8 @@ const handleTabComplete = () => {
     // 获取当前目录下的所有可能补全项
     const allItems = getCompletionItems(currentCmd, currentDir.value, "");
 
-    // 情况1：没有输入参数，直接按顺序循环补全
-    if (!currentArg) {
-      handleGenericCompletion(currentCmd, currentArg, allItems);
-      return;
-    }
-
-    // 情况2：有输入参数，判断是前缀匹配还是顺序循环
-    // 检查当前参数是否是之前补全列表中的完整项
-    const isSequentialMode =
-      tabCompleteState.value.currentCmd === currentCmd &&
-      tabCompleteState.value.items.includes(currentArg);
-
-    if (isSequentialMode) {
-      // 继续顺序循环补全
-      // 确保补全列表是最新的
-      const allItems = getCompletionItems(currentCmd, currentDir.value, "");
-      if (
-        tabCompleteState.value.items.length !== allItems.length ||
-        !tabCompleteState.value.items.every(
-          (item, index) => item === allItems[index]
-        )
-      ) {
-        // 补全列表已变化，重置状态
-        tabCompleteState.value.items = allItems;
-        tabCompleteState.value.index = -1;
-      }
-
-      // 计算当前参数在列表中的位置
-      const currentItemIndex = tabCompleteState.value.items.indexOf(currentArg);
-      if (currentItemIndex !== -1) {
-        // 设置当前索引为找到的位置，下一次循环会从下一个开始
-        tabCompleteState.value.index = currentItemIndex;
-      }
-
-      // 计算下一个索引并应用补全
-      tabCompleteState.value.index =
-        (tabCompleteState.value.index + 1) %
-        tabCompleteState.value.items.length;
-      command.value = `${currentCmd} ${
-        tabCompleteState.value.items[tabCompleteState.value.index]
-      }`;
-    } else {
-      // 前缀匹配模式，使用通用补全函数
-      const allItems = getCompletionItems(currentCmd, currentDir.value, "");
-      handleGenericCompletion(currentCmd, currentArg, allItems);
-    }
+    // 直接使用通用补全函数处理补全
+    handleGenericCompletion(currentCmd, currentArg, allItems);
   } else if (parts[0] === "theme" && parts.length <= 2) {
     // 处理theme命令的参数补全
     // 获取所有可用主题作为候选项
@@ -1430,6 +1521,32 @@ const handleTabComplete = () => {
 
     // 使用通用补全函数进行字体补全
     handleGenericCompletion(currentCmd, currentArg, availableFonts);
+  } else if (parts[0] === "vi" && parts.length <= 2) {
+    // 处理vi命令的参数补全
+    const currentCmd = parts[0];
+    const currentArg = parts.length === 2 ? parts[1] : "";
+
+    // 获取当前目录下的所有文件
+    const allItems = getCompletionItems(currentCmd, currentDir.value, "");
+
+    // 过滤出.md文件
+    const mdItems = allItems.filter((item) => item.endsWith(".md"));
+
+    // 创建vi命令的补全列表，包括.md文件和config.toml
+    let viItems = [...mdItems];
+
+    // 检查config.toml是否已经在列表中，如果不在则添加
+    if (!viItems.includes("config.toml")) {
+      viItems.push("config.toml");
+    }
+
+    // 过滤匹配当前参数前缀的项
+    const matchingItems = currentArg
+      ? viItems.filter((item) => item.startsWith(currentArg))
+      : viItems;
+
+    // 使用通用补全函数进行补全
+    handleGenericCompletion(currentCmd, currentArg, matchingItems);
   }
 };
 
