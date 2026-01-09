@@ -36,8 +36,22 @@ const ls = async (context, targetDir) => {
     const dirs = targetContent.content.filter((item) => item.type === "dir");
     const files = targetContent.content.filter((item) => item.type === "file");
 
-    // 合并结果：目录在前，文件在后
-    const sortedContent = [...dirs, ...files];
+    // 分离.md文件和非.md文件
+    const mdFiles = files.filter((file) => file.name.endsWith(".md"));
+    const otherFiles = files.filter((file) => !file.name.endsWith(".md"));
+
+    // 按时间排序.md文件，最新的在前
+    mdFiles.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
+      return dateB - dateA;
+    });
+
+    // 非.md文件按名称排序
+    otherFiles.sort((a, b) => a.name.localeCompare(b.name));
+
+    // 合并结果：目录在前，.md文件按时间排序，然后是非.md文件按名称排序
+    const sortedContent = [...dirs, ...mdFiles, ...otherFiles];
 
     await addOutput(conversation, {
       type: "dir",
@@ -267,23 +281,49 @@ const clear = async (context) => {
 
 // size 命令
 const size = async (context, size) => {
-  const { conversation, fontSize } = context;
+  const { conversation, updateTomlConfig } = context;
   if (size === "default") {
-    fontSize.value = "18";
-    await addOutput(conversation, {
-      type: "success",
-      content: "Font size set to default (18px)",
+    // 更新TOML配置中的字体大小为默认值
+    const success = updateTomlConfig({
+      ui: {
+        fontSize: "18",
+      },
     });
+
+    if (success) {
+      await addOutput(conversation, {
+        type: "success",
+        content: "Font size set to default (18px)",
+      });
+    } else {
+      await addOutput(conversation, {
+        type: "error",
+        content: "Failed to update font size. Please try again.",
+      });
+    }
   } else {
     // 尝试将size转换为数字
     const sizeNum = parseInt(size);
     // 检查是否为1-26之间的有效数字
     if (!isNaN(sizeNum) && sizeNum >= 1 && sizeNum <= 26) {
-      fontSize.value = sizeNum.toString();
-      await addOutput(conversation, {
-        type: "success",
-        content: `Font size set to ${sizeNum}px`,
+      // 更新TOML配置中的字体大小
+      const success = updateTomlConfig({
+        ui: {
+          fontSize: sizeNum.toString(),
+        },
       });
+
+      if (success) {
+        await addOutput(conversation, {
+          type: "success",
+          content: `Font size set to ${sizeNum}px`,
+        });
+      } else {
+        await addOutput(conversation, {
+          type: "error",
+          content: "Failed to update font size. Please try again.",
+        });
+      }
     } else {
       await addOutput(conversation, {
         type: "error",
@@ -295,7 +335,7 @@ const size = async (context, size) => {
 
 // background 命令
 const background = async (context, ...args) => {
-  const { conversation, background: bg } = context;
+  const { conversation, background: bg, updateTomlConfig } = context;
 
   if (args.length === 0) {
     // 显示当前背景设置
@@ -310,11 +350,24 @@ const background = async (context, ...args) => {
     const opacity = args[0];
     const opacityNum = parseFloat(opacity);
     if (!isNaN(opacityNum) && opacityNum >= 0 && opacityNum <= 1) {
-      bg.opacity.value = opacityNum; // 保持数字类型，不转换为字符串
-      await addOutput(conversation, {
-        type: "success",
-        content: `Background opacity set to ${opacity}`,
+      // 更新TOML配置中的背景透明度
+      const success = updateTomlConfig({
+        background: {
+          opacity: opacityNum.toString(),
+        },
       });
+
+      if (success) {
+        await addOutput(conversation, {
+          type: "success",
+          content: `Background opacity set to ${opacity}`,
+        });
+      } else {
+        await addOutput(conversation, {
+          type: "error",
+          content: "Failed to update background opacity. Please try again.",
+        });
+      }
     } else {
       await addOutput(conversation, {
         type: "error",
@@ -327,11 +380,24 @@ const background = async (context, ...args) => {
     const opacity = args[1];
     const opacityNum = parseFloat(opacity);
     if (!isNaN(opacityNum) && opacityNum >= 0 && opacityNum <= 1) {
-      bg.opacity.value = opacityNum; // 保持数字类型，不转换为字符串
-      await addOutput(conversation, {
-        type: "success",
-        content: `Background opacity set to ${opacity}`,
+      // 更新TOML配置中的背景透明度
+      const success = updateTomlConfig({
+        background: {
+          opacity: opacityNum.toString(),
+        },
       });
+
+      if (success) {
+        await addOutput(conversation, {
+          type: "success",
+          content: `Background opacity set to ${opacity}`,
+        });
+      } else {
+        await addOutput(conversation, {
+          type: "error",
+          content: "Failed to update background opacity. Please try again.",
+        });
+      }
     } else {
       await addOutput(conversation, {
         type: "error",
@@ -369,23 +435,32 @@ const background = async (context, ...args) => {
       return;
     }
 
-    // 设置背景图片
-    console.log("Setting background image to:", imagePath);
-    console.log("Background object:", bg);
-    bg.image.value = imagePath;
-    console.log("Background image value after setting:", bg.image.value);
-    await addOutput(conversation, {
-      type: "success",
-      content: `Background image set to ${imagePath}`,
+    // 更新TOML配置中的背景图片
+    const success = updateTomlConfig({
+      background: {
+        image: imagePath,
+      },
     });
 
-    // 显示当前背景设置，让用户确认修改
-    await addOutput(conversation, {
-      type: "info",
-      content: `Current background settings:
+    if (success) {
+      await addOutput(conversation, {
+        type: "success",
+        content: `Background image set to ${imagePath}`,
+      });
+
+      // 显示当前背景设置，让用户确认修改
+      await addOutput(conversation, {
+        type: "info",
+        content: `Current background settings:
   Image: ${bg.image.value}
   Opacity: ${bg.opacity.value}`,
-    });
+      });
+    } else {
+      await addOutput(conversation, {
+        type: "error",
+        content: "Failed to update background image. Please try again.",
+      });
+    }
   } else {
     await addOutput(conversation, {
       type: "error",
@@ -629,7 +704,7 @@ const ping = async (context, target = "localhost") => {
 
 // theme 命令
 const theme = async (context, ...args) => {
-  const { conversation, theme, uiStyles } = context;
+  const { conversation, theme, updateTomlConfig } = context;
   if (args.length === 0) {
     // 显示当前主题和可用主题
     await addOutput(conversation, {
@@ -641,12 +716,24 @@ const theme = async (context, ...args) => {
   } else if (args.length === 1) {
     const requestedTheme = args[0];
     if (theme.available.value.includes(requestedTheme)) {
-      // 直接更新uiStyles中的主题，而不是尝试修改只读的computed属性
-      uiStyles.value.theme.current = requestedTheme;
-      await addOutput(conversation, {
-        type: "success",
-        content: `Theme set to ${requestedTheme}`,
+      // 更新TOML配置中的主题
+      const success = updateTomlConfig({
+        theme: {
+          current: requestedTheme,
+        },
       });
+
+      if (success) {
+        await addOutput(conversation, {
+          type: "success",
+          content: `Theme set to ${requestedTheme}`,
+        });
+      } else {
+        await addOutput(conversation, {
+          type: "error",
+          content: `Failed to update theme. Please try again.`,
+        });
+      }
     } else {
       await addOutput(conversation, {
         type: "error",
@@ -670,7 +757,7 @@ const echo = async (context, ...args) => {
 
 // font 命令 - 修改字体
 const font = async (context, ...args) => {
-  const { conversation, font } = context;
+  const { conversation, updateTomlConfig } = context;
   const availableFonts = [
     "0xProto Nerd Font",
     "Fira Code",
@@ -680,7 +767,8 @@ const font = async (context, ...args) => {
   const defaultFont = "Cascadia Code"; // 默认字体，避免文件图标乱码
 
   if (args.length === 0) {
-    // 显示当前字体设置和可用字体
+    // 显示当前字体设置和可用字体 - 从上下文中获取currentFont
+    const { font } = context;
     await addOutput(conversation, {
       type: "info",
       content: `Current font: ${
@@ -690,18 +778,43 @@ const font = async (context, ...args) => {
   } else {
     const fontName = args.join(" ");
     if (availableFonts.includes(fontName)) {
-      font.family.value = fontName;
-      await addOutput(conversation, {
-        type: "success",
-        content: `Font set to ${fontName}`,
+      // 更新TOML配置中的字体
+      const success = updateTomlConfig({
+        ui: {
+          fontFamily: fontName,
+        },
       });
+
+      if (success) {
+        await addOutput(conversation, {
+          type: "success",
+          content: `Font set to ${fontName}`,
+        });
+      } else {
+        await addOutput(conversation, {
+          type: "error",
+          content: "Failed to update font. Please try again.",
+        });
+      }
     } else if (fontName === "default") {
       // 切换回默认字体
-      font.family.value = defaultFont;
-      await addOutput(conversation, {
-        type: "success",
-        content: `Font set to default (${defaultFont})`,
+      const success = updateTomlConfig({
+        ui: {
+          fontFamily: defaultFont,
+        },
       });
+
+      if (success) {
+        await addOutput(conversation, {
+          type: "success",
+          content: `Font set to default (${defaultFont})`,
+        });
+      } else {
+        await addOutput(conversation, {
+          type: "error",
+          content: "Failed to update font. Please try again.",
+        });
+      }
     } else {
       await addOutput(conversation, {
         type: "error",
@@ -899,9 +1012,10 @@ const clearConfig = async (context, ...args) => {
     clearHistory,
   } = context;
 
-  // 清除localStorage中的设置和历史命令
+  // 清除localStorage中的设置、历史命令和缓存的TOML配置
   localStorage.removeItem("terminalSettings");
   localStorage.removeItem("terminalHistory");
+  localStorage.removeItem("terminalConfigToml");
 
   // 重置应用程序状态
   // 重置字体大小

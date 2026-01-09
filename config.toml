@@ -56,6 +56,11 @@ borderColor = "transparent"
 height = "24px"
 padding = "0 10px"
 
+# 信息栏显示模板（分为左右两栏）
+# 可用变量: {user}, {dayOfWeek}, {time}, {latency}, {cpu}, {mem}, {memUsage}, {memTotal}
+leftTemplate = "{user} on {dayOfWeek} at {time}"
+rightTemplate = "{latency}  MEM: {mem}% ({memUsage}/{memTotal}GB)"
+
 # 信息栏各元素配色
 [ui.infoBar.colors]
 username = "#ffbebc"

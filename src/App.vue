@@ -72,41 +72,36 @@
           <!-- 命令行 -->
           <div class="command-line">
             <div class="prompt-header">
-              <span class="user-info">
-                <span
-                  class="username"
-                  :style="{ color: uiStyles.infoBar.username }"
-                  >{{ user }}</span
-                >
-                <span class="user-info-separator"> on </span>
-                <span
-                  class="day-of-week"
-                  :style="{ color: uiStyles.infoBar.dayOfWeek }"
-                  >{{ getDayOfWeek() }}</span
-                >
-                <span class="user-info-separator"> at </span>
-                <span
-                  class="command-time"
-                  :style="{ color: uiStyles.infoBar.commandTime }"
-                  >{{ conversation.command.time }}</span
-                >
-              </span>
-              <span class="latency-mem-info">
-                <span
-                  class="latency"
-                  :style="{ color: uiStyles.infoBar.latency }"
-                  >{{ latency }}</span
-                >
-                <span class="mem-label">  MEM:</span>
-                <span
-                  class="mem-value"
-                  :style="{ color: uiStyles.infoBar.mem }"
-                >
-                  {{ memoryInfo.percent }}% ({{ memoryInfo.usage }}/{{
-                    memoryInfo.total
-                  }}GB)</span
-                >
-              </span>
+              <div
+                class="info-bar-left"
+                v-html="
+                  parseInfoBarTemplate(uiStyles.infoBar.leftTemplate, {
+                    user: user,
+                    dayOfWeek: getDayOfWeek(),
+                    time: conversation.command.time,
+                    latency: latency,
+                    cpu: cpuInfo,
+                    mem: memoryInfo.percent,
+                    memUsage: memoryInfo.usage,
+                    memTotal: memoryInfo.total,
+                  })
+                "
+              ></div>
+              <div
+                class="info-bar-right"
+                v-html="
+                  parseInfoBarTemplate(uiStyles.infoBar.rightTemplate, {
+                    user: user,
+                    dayOfWeek: getDayOfWeek(),
+                    time: conversation.command.time,
+                    latency: latency,
+                    cpu: cpuInfo,
+                    mem: memoryInfo.percent,
+                    memUsage: memoryInfo.usage,
+                    memTotal: memoryInfo.total,
+                  })
+                "
+              ></div>
             </div>
             <div class="prompt-line">
               <span
@@ -151,8 +146,15 @@
                   v-else-if="item.type === 'file'"
                   class="file-item"
                   :style="{ color: uiStyles.commandLine.file }"
-                  >{{ item.icon }} {{ item.name }}</span
                 >
+                  {{ item.icon }} {{ item.name }}
+                  <span
+                    v-if="item.name.endsWith('.md') && item.date"
+                    class="file-date"
+                    :style="{ color: '#94a3b8', marginLeft: '10px' }"
+                    >{{ item.date }}</span
+                  >
+                </span>
               </div>
             </div>
             <div
@@ -173,38 +175,36 @@
         <!-- 当前输入行 - 仅在命令执行完毕后显示 -->
         <div v-if="!isCommandExecuting" class="input-line">
           <div class="prompt-header">
-            <span class="user-info">
-              <span
-                class="username"
-                :style="{ color: uiStyles.infoBar.username }"
-                >{{ user }}</span
-              >
-              <span class="user-info-separator"> on </span>
-              <span
-                class="day-of-week"
-                :style="{ color: uiStyles.infoBar.dayOfWeek }"
-                >{{ getDayOfWeek() }}</span
-              >
-              <span class="user-info-separator"> at </span>
-              <span
-                class="command-time"
-                :style="{ color: uiStyles.infoBar.commandTime }"
-                >{{ currentTime }}</span
-              >
-            </span>
-            <span class="latency-mem-info">
-              <span
-                class="latency"
-                :style="{ color: uiStyles.infoBar.latency }"
-                >{{ latency }}</span
-              >
-              <span class="mem-label">  MEM:</span>
-              <span class="mem-value" :style="{ color: uiStyles.infoBar.mem }">
-                {{ memoryInfo.percent }}% ({{ memoryInfo.usage }}/{{
-                  memoryInfo.total
-                }}GB)</span
-              >
-            </span>
+            <div
+              class="info-bar-left"
+              v-html="
+                parseInfoBarTemplate(uiStyles.infoBar.leftTemplate, {
+                  user: user,
+                  dayOfWeek: getDayOfWeek(),
+                  time: currentTime,
+                  latency: latency,
+                  cpu: cpuInfo,
+                  mem: memoryInfo.percent,
+                  memUsage: memoryInfo.usage,
+                  memTotal: memoryInfo.total,
+                })
+              "
+            ></div>
+            <div
+              class="info-bar-right"
+              v-html="
+                parseInfoBarTemplate(uiStyles.infoBar.rightTemplate, {
+                  user: user,
+                  dayOfWeek: getDayOfWeek(),
+                  time: currentTime,
+                  latency: latency,
+                  cpu: cpuInfo,
+                  mem: memoryInfo.percent,
+                  memUsage: memoryInfo.usage,
+                  memTotal: memoryInfo.total,
+                })
+              "
+            ></div>
           </div>
           <div class="prompt-line">
             <span class="prompt" :style="{ color: uiStyles.commandLine.prompt }"
@@ -240,23 +240,31 @@
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from "vue";
 import { marked } from "marked";
 import postsData from "../posts.json";
-import { parse } from "@iarna/toml";
+import { parse, stringify } from "@iarna/toml";
 
 // 从命令模块导入命令映射
 import commands from "./commands"; // 优雅的默认导入
 
-// 读取配置文件
-let config = {
+// 配置默认值（用于初始化ref）
+const defaultConfig = {
   app: { user: "Alan" },
   ui: {
     fontSize: "18",
     fontFamily: "Consolas, Monaco, 'Courier New', monospace",
     infoBar: {
+      backgroundColor: "transparent",
+      textColor: "#e2e8f0",
+      borderColor: "transparent",
+      height: "24px",
+      padding: "0 10px",
+      leftTemplate: "{user} on {dayOfWeek} at {time}",
+      rightTemplate: "{latency}  MEM: {mem}% ({memUsage}/{memTotal}GB)",
       colors: {
         username: "#ffbebc",
         dayOfWeek: "#bc93ff",
         commandTime: "#bc93ff",
         latency: "#a9ffb4",
+        cpu: "#ce9178",
         mem: "#a9ffb4",
       },
     },
@@ -304,66 +312,218 @@ let config = {
   },
 };
 
-// 在浏览器环境中使用fetch读取配置文件
+// 辅助函数：更新localStorage中的TOML配置
+const updateTomlConfig = (updates) => {
+  try {
+    // 获取当前缓存的TOML配置
+    const cachedConfig = localStorage.getItem("terminalConfigToml");
+    if (!cachedConfig) return false;
+
+    // 解析TOML到JS对象
+    const parsedConfig = parse(cachedConfig);
+
+    // 应用更新
+    const updatedConfig = { ...parsedConfig };
+
+    // 递归更新配置对象
+    const applyUpdates = (obj, updates, path = []) => {
+      for (const [key, value] of Object.entries(updates)) {
+        const currentPath = [...path, key];
+        let target = obj;
+
+        // 构建嵌套路径
+        for (let i = 0; i < currentPath.length - 1; i++) {
+          const nestedKey = currentPath[i];
+          if (!target[nestedKey]) {
+            target[nestedKey] = {};
+          }
+          target = target[nestedKey];
+        }
+
+        // 设置最终值
+        target[currentPath[currentPath.length - 1]] = value;
+      }
+    };
+
+    applyUpdates(updatedConfig, updates);
+
+    // 使用@iarna/toml的stringify函数转换为TOML格式
+    const tomlString = stringify(updatedConfig);
+
+    // 保存回localStorage
+    localStorage.setItem("terminalConfigToml", tomlString);
+
+    // 重新加载配置以应用更改
+    loadConfig();
+
+    return true;
+  } catch (error) {
+    console.error("Failed to update TOML config:", error);
+    return false;
+  }
+};
+
+// 简单的TOML字符串生成函数
+const toTomlString = (obj, indent = 0, parentKey = "") => {
+  let result = "";
+  const indentStr = "  ".repeat(indent);
+
+  for (const [key, value] of Object.entries(obj)) {
+    const fullKey = parentKey ? `${parentKey}.${key}` : key;
+
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      // 嵌套对象，生成section
+      result += `${indentStr}[${fullKey}]\n`;
+      result += toTomlString(value, indent + 1, fullKey);
+    } else if (
+      typeof value === "object" &&
+      value !== null &&
+      Array.isArray(value)
+    ) {
+      // 数组
+      result += `${indentStr}${key} = [${value
+        .map((item) => `\"${item}\"`)
+        .join(", ")}]\n`;
+    } else if (typeof value === "string") {
+      // 字符串值 - 处理多行字符串
+      if (value.includes("\n")) {
+        // 多行字符串使用三引号
+        result += `${indentStr}${key} = \"\"\"\n${value}\n${indentStr}\"\"\"\n`;
+      } else {
+        // 单行字符串使用普通引号
+        result += `${indentStr}${key} = \"${value}\"\n`;
+      }
+    } else if (typeof value === "number") {
+      // 数字值
+      result += `${indentStr}${key} = ${value}\n`;
+    } else if (typeof value === "boolean") {
+      // 布尔值
+      result += `${indentStr}${key} = ${value}\n`;
+    }
+  }
+
+  return result;
+};
+
+// 在浏览器环境中使用fetch读取配置文件，并缓存到localStorage
 const loadConfig = async () => {
   try {
-    const response = await fetch("/config.toml");
-    if (response.ok) {
-      const configContent = await response.text();
-      config = parse(configContent);
+    let configContent;
+    let isFreshConfig = false;
+
+    // 检查localStorage中是否有缓存的配置
+    let cachedConfig = localStorage.getItem("terminalConfigToml");
+
+    // 标记是否需要获取新配置
+    let needsFreshConfig = !cachedConfig;
+
+    // 如果有缓存但之前解析失败过，尝试获取新配置
+    if (cachedConfig) {
+      try {
+        // 预检查缓存是否有效
+        parse(cachedConfig);
+        console.log("Using cached config.toml from localStorage");
+      } catch (preCheckError) {
+        console.warn("Cached config is corrupted, fetching fresh copy...");
+        localStorage.removeItem("terminalConfigToml");
+        cachedConfig = null;
+        needsFreshConfig = true;
+      }
+    }
+
+    // 如果需要获取新配置
+    if (needsFreshConfig) {
+      const response = await fetch("/config.toml");
+      if (response.ok) {
+        configContent = await response.text();
+        // 将原始TOML内容缓存到localStorage
+        localStorage.setItem("terminalConfigToml", configContent);
+        console.log("Fetched and cached fresh config.toml from server");
+        isFreshConfig = true;
+      }
+    } else {
+      // 使用缓存的配置
+      configContent = cachedConfig;
+    }
+
+    if (configContent) {
+      // 解析TOML配置
+      const parsedConfig = parse(configContent);
+      // 更新响应式配置变量
+      config.value = parsedConfig;
+
       // 更新状态值
-      user.value = config.app.user;
-      fontSize.value = config.ui.fontSize;
-      font.family.value = config.ui.fontFamily || "Cascadia Code"; // 更新字体设置
-      background.image.value = config.background.image;
-      background.opacity.value = parseFloat(config.background.opacity); // 转换为数字类型
-      theme.current.value = config.theme.current;
-      theme.available.value = config.theme.available;
+      user.value = parsedConfig.app.user;
+      fontSize.value = parsedConfig.ui.fontSize;
+      font.family.value = parsedConfig.ui.fontFamily || "Cascadia Code"; // 更新字体设置
+      background.image.value = parsedConfig.background.image;
+      background.opacity.value = parseFloat(parsedConfig.background.opacity); // 转换为数字类型
 
       // 更新主题配置
       const newThemeConfig = {
-        current: config.theme.current,
-        available: config.theme.available,
-        colors: config.theme[config.theme.current] || {},
+        current: parsedConfig.theme.current,
+        available: parsedConfig.theme.available,
+        colors: parsedConfig.theme[parsedConfig.theme.current] || {},
       };
 
       // 更新样式配置 - 从配置文件读取命令行样式
       uiStyles.value = {
-        // 信息栏配色
+        // 信息栏配置
         infoBar: {
-          username: config.ui?.infoBar?.colors?.username || "#ffbebc",
-          dayOfWeek: config.ui?.infoBar?.colors?.dayOfWeek || "#bc93ff",
-          commandTime: config.ui?.infoBar?.colors?.commandTime || "#bc93ff",
-          latency: config.ui?.infoBar?.colors?.latency || "#a9ffb4",
-          mem: config.ui?.infoBar?.colors?.mem || "#a9ffb4",
+          backgroundColor:
+            parsedConfig.ui?.infoBar?.backgroundColor || "transparent",
+          textColor: parsedConfig.ui?.infoBar?.textColor || "#e2e8f0",
+          borderColor: parsedConfig.ui?.infoBar?.borderColor || "transparent",
+          height: parsedConfig.ui?.infoBar?.height || "24px",
+          padding: parsedConfig.ui?.infoBar?.padding || "0 10px",
+          leftTemplate:
+            parsedConfig.ui?.infoBar?.leftTemplate ||
+            "{user} on {dayOfWeek} at {time}",
+          rightTemplate:
+            parsedConfig.ui?.infoBar?.rightTemplate ||
+            "{latency}  MEM: {mem}% ({memUsage}/{memTotal}GB)",
+          colors: {
+            username: parsedConfig.ui?.infoBar?.colors?.username || "#ffbebc",
+            dayOfWeek: parsedConfig.ui?.infoBar?.colors?.dayOfWeek || "#bc93ff",
+            commandTime:
+              parsedConfig.ui?.infoBar?.colors?.commandTime || "#bc93ff",
+            latency: parsedConfig.ui?.infoBar?.colors?.latency || "#a9ffb4",
+            cpu: parsedConfig.ui?.infoBar?.colors?.cpu || "#ce9178",
+            mem: parsedConfig.ui?.infoBar?.colors?.mem || "#a9ffb4",
+          },
         },
         // 命令行样式 - 从配置读取
         commandLine: {
           // 文本格式选项
-          boldPrompt: config.ui?.commandLine?.boldPrompt || false,
-          italicPrompt: config.ui?.commandLine?.italicPrompt || false,
-          underlinePrompt: config.ui?.commandLine?.underlinePrompt || false,
+          boldPrompt: parsedConfig.ui?.commandLine?.boldPrompt || false,
+          italicPrompt: parsedConfig.ui?.commandLine?.italicPrompt || false,
+          underlinePrompt:
+            parsedConfig.ui?.commandLine?.underlinePrompt || false,
           // 基本样式
-          prompt: config.ui?.commandLine?.colors?.prompt || "#3b82f6",
-          promptSymbol: config.ui?.commandLine?.promptSymbol || "$",
+          prompt: parsedConfig.ui?.commandLine?.colors?.prompt || "#3b82f6",
+          promptSymbol: parsedConfig.ui?.commandLine?.promptSymbol || "$",
           promptSymbolColor:
-            config.ui?.commandLine?.promptSymbolColor || "#ec4899",
-          directory: config.ui?.commandLine?.colors?.directory || "#60a5fa",
-          file: config.ui?.commandLine?.colors?.file || "#fbbf24",
-          command: config.ui?.commandLine?.colors?.command || "#ffffff",
+            parsedConfig.ui?.commandLine?.promptSymbolColor || "#ec4899",
+          directory:
+            parsedConfig.ui?.commandLine?.colors?.directory || "#60a5fa",
+          file: parsedConfig.ui?.commandLine?.colors?.file || "#fbbf24",
+          command: parsedConfig.ui?.commandLine?.colors?.command || "#ffffff",
           // 状态颜色
-          error: config.ui?.commandLine?.colors?.error || "#ff0000",
-          success: config.ui?.commandLine?.colors?.success || "#00ff00",
-          warning: config.ui?.commandLine?.colors?.warning || "#ffff00",
-          info: config.ui?.commandLine?.colors?.info || "#00ffff",
+          error: parsedConfig.ui?.commandLine?.colors?.error || "#ff0000",
+          success: parsedConfig.ui?.commandLine?.colors?.success || "#00ff00",
+          warning: parsedConfig.ui?.commandLine?.colors?.warning || "#ffff00",
+          info: parsedConfig.ui?.commandLine?.colors?.info || "#00ffff",
           // 输出格式配色
           output: {
-            dirItem: config.ui?.commandLine?.output?.dirItem || "#60a5fa",
-            fileItem: config.ui?.commandLine?.output?.fileItem || "#fbbf24",
-            error: config.ui?.commandLine?.output?.error || "#ff0000",
-            help: config.ui?.commandLine?.output?.help || "#a9ffb4",
-            listItem: config.ui?.commandLine?.output?.listItem || "#ffffff",
-            treeLine: config.ui?.commandLine?.output?.treeLine || "#6b7280",
+            dirItem: parsedConfig.ui?.commandLine?.output?.dirItem || "#60a5fa",
+            fileItem:
+              parsedConfig.ui?.commandLine?.output?.fileItem || "#fbbf24",
+            error: parsedConfig.ui?.commandLine?.output?.error || "#ff0000",
+            help: parsedConfig.ui?.commandLine?.output?.help || "#a9ffb4",
+            listItem:
+              parsedConfig.ui?.commandLine?.output?.listItem || "#ffffff",
+            treeLine:
+              parsedConfig.ui?.commandLine?.output?.treeLine || "#6b7280",
           },
         },
         // 主题配置
@@ -371,12 +531,12 @@ const loadConfig = async () => {
       };
 
       // 更新欢迎语配置
-      if (config.welcome) {
+      if (parsedConfig.welcome) {
         welcomeConfig.value = {
-          title: config.welcome.title || welcomeConfig.value.title,
+          title: parsedConfig.welcome.title || welcomeConfig.value.title,
           welcomeMsg:
-            config.welcome.welcomeMsg || welcomeConfig.value.welcomeMsg,
-          helpMsg: config.welcome.helpMsg || welcomeConfig.value.helpMsg,
+            parsedConfig.welcome.welcomeMsg || welcomeConfig.value.welcomeMsg,
+          helpMsg: parsedConfig.welcome.helpMsg || welcomeConfig.value.helpMsg,
         };
       }
     }
@@ -384,15 +544,15 @@ const loadConfig = async () => {
     console.warn(
       `Failed to load config.toml: ${error.message}. Using default configuration.`
     );
+    // 如果配置加载失败，尝试清除可能损坏的缓存
+    localStorage.removeItem("terminalConfigToml");
   }
 };
 
 // 初始化应用配置
 const initApp = async () => {
   await loadConfig();
-
-  // 最后加载本地设置，覆盖默认配置
-  loadSettings();
+  // 不再加载terminalSettings，所有配置都来自TOML
 };
 
 // 状态管理 - 按功能分组
@@ -459,7 +619,7 @@ const getCompletionItems = (cmd, currentDirValue, currentArg) => {
 };
 
 // 用户和系统信息
-const user = ref(config.app.user);
+const user = ref(defaultConfig.app.user);
 const currentTime = ref("");
 const currentDayOfWeek = ref("");
 const browserInfo = {
@@ -488,23 +648,70 @@ const memoryInfo = {
   total: ref("0"),
   percent: ref("0"),
 };
+const cpuInfo = ref("0%"); // CPU使用率
 const latency = ref("0.000s");
 
+// 解析信息栏模板，替换变量为实际值
+const parseInfoBarTemplate = (template, data) => {
+  // 确保获取ref的实际值
+  const getValue = (val) => {
+    return typeof val === "object" && val !== null && "value" in val
+      ? val.value
+      : val;
+  };
+
+  // 替换所有可用变量
+  let parsedTemplate = template;
+  const variables = {
+    "{user}": `<span style="color: ${
+      uiStyles.value.infoBar.colors.username
+    }">${getValue(data.user)}</span>`,
+    "{dayOfWeek}": `<span style="color: ${
+      uiStyles.value.infoBar.colors.dayOfWeek
+    }">${getValue(data.dayOfWeek)}</span>`,
+    "{time}": `<span style="color: ${
+      uiStyles.value.infoBar.colors.commandTime
+    }">${getValue(data.time)}</span>`,
+    "{latency}": `<span style="color: ${
+      uiStyles.value.infoBar.colors.latency
+    }">${getValue(data.latency)}</span>`,
+    "{cpu}": `<span style="color: ${
+      uiStyles.value.infoBar.colors.cpu
+    }">${getValue(data.cpu)}</span>`,
+    "{mem}": `<span style="color: ${
+      uiStyles.value.infoBar.colors.mem
+    }">${getValue(data.mem)}</span>`,
+    "{memUsage}": `<span style="color: ${
+      uiStyles.value.infoBar.colors.mem
+    }">${getValue(data.memUsage)}</span>`,
+    "{memTotal}": `<span style="color: ${
+      uiStyles.value.infoBar.colors.mem
+    }">${getValue(data.memTotal)}</span>`,
+  };
+
+  // 替换模板中的所有变量
+  for (const [key, value] of Object.entries(variables)) {
+    parsedTemplate = parsedTemplate.replace(new RegExp(key, "g"), value);
+  }
+
+  return parsedTemplate;
+};
+
 // UI 相关状态
-const fontSize = ref(config.ui.fontSize); // 字体大小，从配置文件读取
+const fontSize = ref(defaultConfig.ui.fontSize); // 字体大小，从配置文件读取
 const font = {
-  family: ref(config.ui.fontFamily || "Cascadia Code"), // 字体，从配置文件读取，默认为Cascadia Code
+  family: ref(defaultConfig.ui.fontFamily || "Cascadia Code"), // 字体，从配置文件读取，默认为Cascadia Code
 };
 const background = {
-  image: ref(config.background.image), // 背景图片路径，从配置文件读取
-  opacity: ref(parseFloat(config.background.opacity)), // 背景透明度，初始化为数字类型
+  image: ref(defaultConfig.background.image), // 背景图片路径，从配置文件读取
+  opacity: ref(parseFloat(defaultConfig.background.opacity)), // 背景透明度，初始化为数字类型
 };
 
 // 先初始化主题配置
 const themeConfig = ref({
-  current: config.theme.current,
-  available: config.theme.available,
-  colors: config.theme[config.theme.current] || {
+  current: defaultConfig.theme.current,
+  available: defaultConfig.theme.available,
+  colors: defaultConfig.theme[defaultConfig.theme.current] || {
     prompt: "#3b82f6",
     directory: "#60a5fa",
     file: "#fbbf24",
@@ -513,40 +720,56 @@ const themeConfig = ref({
 
 // 样式配置统一管理
 const uiStyles = ref({
-  // 信息栏配色
+  // 信息栏配置
   infoBar: {
-    username: config.ui?.infoBar?.colors?.username || "#ffbebc",
-    dayOfWeek: config.ui?.infoBar?.colors?.dayOfWeek || "#bc93ff",
-    commandTime: config.ui?.infoBar?.colors?.commandTime || "#bc93ff",
-    latency: config.ui?.infoBar?.colors?.latency || "#a9ffb4",
-    mem: config.ui?.infoBar?.colors?.mem || "#a9ffb4",
+    backgroundColor:
+      defaultConfig.ui?.infoBar?.backgroundColor || "transparent",
+    textColor: defaultConfig.ui?.infoBar?.textColor || "#e2e8f0",
+    borderColor: defaultConfig.ui?.infoBar?.borderColor || "transparent",
+    height: defaultConfig.ui?.infoBar?.height || "24px",
+    padding: defaultConfig.ui?.infoBar?.padding || "0 10px",
+    leftTemplate:
+      defaultConfig.ui?.infoBar?.leftTemplate ||
+      "{user} on {dayOfWeek} at {time}",
+    rightTemplate:
+      defaultConfig.ui?.infoBar?.rightTemplate ||
+      "{latency}  MEM: {mem}% ({memUsage}/{memTotal}GB)",
+    colors: {
+      username: defaultConfig.ui?.infoBar?.colors?.username || "#ffbebc",
+      dayOfWeek: defaultConfig.ui?.infoBar?.colors?.dayOfWeek || "#bc93ff",
+      commandTime: defaultConfig.ui?.infoBar?.colors?.commandTime || "#bc93ff",
+      latency: defaultConfig.ui?.infoBar?.colors?.latency || "#a9ffb4",
+      cpu: defaultConfig.ui?.infoBar?.colors?.cpu || "#ce9178",
+      mem: defaultConfig.ui?.infoBar?.colors?.mem || "#a9ffb4",
+    },
   },
   // 命令行样式 - 从配置读取
   commandLine: {
     // 文本格式选项
-    boldPrompt: config.ui?.commandLine?.boldPrompt || false,
-    italicPrompt: config.ui?.commandLine?.italicPrompt || false,
-    underlinePrompt: config.ui?.commandLine?.underlinePrompt || false,
+    boldPrompt: defaultConfig.ui?.commandLine?.boldPrompt || false,
+    italicPrompt: defaultConfig.ui?.commandLine?.italicPrompt || false,
+    underlinePrompt: defaultConfig.ui?.commandLine?.underlinePrompt || false,
     // 基本样式
-    prompt: config.ui?.commandLine?.colors?.prompt || "#3b82f6",
-    promptSymbol: config.ui?.commandLine?.promptSymbol || "$",
-    promptSymbolColor: config.ui?.commandLine?.promptSymbolColor || "#ec4899",
-    directory: config.ui?.commandLine?.colors?.directory || "#60a5fa",
-    file: config.ui?.commandLine?.colors?.file || "#fbbf24",
-    command: config.ui?.commandLine?.colors?.command || "#ffffff",
+    prompt: defaultConfig.ui?.commandLine?.colors?.prompt || "#3b82f6",
+    promptSymbol: defaultConfig.ui?.commandLine?.promptSymbol || "$",
+    promptSymbolColor:
+      defaultConfig.ui?.commandLine?.promptSymbolColor || "#ec4899",
+    directory: defaultConfig.ui?.commandLine?.colors?.directory || "#60a5fa",
+    file: defaultConfig.ui?.commandLine?.colors?.file || "#fbbf24",
+    command: defaultConfig.ui?.commandLine?.colors?.command || "#ffffff",
     // 状态颜色
-    error: config.ui?.commandLine?.colors?.error || "#ff0000",
-    success: config.ui?.commandLine?.colors?.success || "#00ff00",
-    warning: config.ui?.commandLine?.colors?.warning || "#ffff00",
-    info: config.ui?.commandLine?.colors?.info || "#00ffff",
+    error: defaultConfig.ui?.commandLine?.colors?.error || "#ff0000",
+    success: defaultConfig.ui?.commandLine?.colors?.success || "#00ff00",
+    warning: defaultConfig.ui?.commandLine?.colors?.warning || "#ffff00",
+    info: defaultConfig.ui?.commandLine?.colors?.info || "#00ffff",
     // 输出格式配色
     output: {
-      dirItem: config.ui?.commandLine?.output?.dirItem || "#60a5fa",
-      fileItem: config.ui?.commandLine?.output?.fileItem || "#fbbf24",
-      error: config.ui?.commandLine?.output?.error || "#ff0000",
-      help: config.ui?.commandLine?.output?.help || "#a9ffb4",
-      listItem: config.ui?.commandLine?.output?.listItem || "#ffffff",
-      treeLine: config.ui?.commandLine?.output?.treeLine || "#6b7280",
+      dirItem: defaultConfig.ui?.commandLine?.output?.dirItem || "#60a5fa",
+      fileItem: defaultConfig.ui?.commandLine?.output?.fileItem || "#fbbf24",
+      error: defaultConfig.ui?.commandLine?.output?.error || "#ff0000",
+      help: defaultConfig.ui?.commandLine?.output?.help || "#a9ffb4",
+      listItem: defaultConfig.ui?.commandLine?.output?.listItem || "#ffffff",
+      treeLine: defaultConfig.ui?.commandLine?.output?.treeLine || "#6b7280",
     },
   },
   // 主题配置
@@ -568,7 +791,7 @@ watch(
   () => theme.current.value,
   (newTheme) => {
     // 主题变化时，从配置中获取对应主题的样式
-    const themeColors = config.theme[newTheme] || {
+    const themeColors = config.value.theme[newTheme] || {
       prompt: uiStyles.value.commandLine.prompt || "#3b82f6",
       directory: uiStyles.value.commandLine.directory || "#60a5fa",
       file: uiStyles.value.commandLine.file || "#fbbf24",
@@ -579,11 +802,14 @@ watch(
     uiStyles.value.commandLine = {
       ...uiStyles.value.commandLine,
       // 只在配置文件中没有明确设置时才使用主题颜色
-      prompt: config.ui?.commandLine?.colors?.prompt || themeColors.prompt,
+      prompt:
+        config.value.ui?.commandLine?.colors?.prompt || themeColors.prompt,
       directory:
-        config.ui?.commandLine?.colors?.directory || themeColors.directory,
-      file: config.ui?.commandLine?.colors?.file || themeColors.file,
-      command: config.ui?.commandLine?.colors?.command || themeColors.command,
+        config.value.ui?.commandLine?.colors?.directory ||
+        themeColors.directory,
+      file: config.value.ui?.commandLine?.colors?.file || themeColors.file,
+      command:
+        config.value.ui?.commandLine?.colors?.command || themeColors.command,
     };
 
     // 更新所有已渲染的文档内容的主题
@@ -622,96 +848,6 @@ const loadHistory = () => {
   }
 };
 
-// 保存样式设置到localStorage
-const saveSettings = () => {
-  // 确保只保存有效的主题名称
-  let validTheme = theme.current.value;
-  if (!config.theme.available.includes(validTheme)) {
-    validTheme = "default";
-  }
-
-  const settings = {
-    fontSize: fontSize.value,
-    font: font.family.value,
-    background: {
-      image: background.image.value,
-      opacity: background.opacity.value,
-    },
-    theme: validTheme,
-  };
-  localStorage.setItem("terminalSettings", JSON.stringify(settings));
-};
-
-// 从localStorage加载样式设置
-const loadSettings = () => {
-  const savedSettings = localStorage.getItem("terminalSettings");
-  if (savedSettings) {
-    try {
-      const parsedSettings = JSON.parse(savedSettings);
-      // 更新样式设置
-      if (parsedSettings.fontSize) {
-        fontSize.value = parsedSettings.fontSize;
-      }
-      if (parsedSettings.font) {
-        font.family.value = parsedSettings.font;
-      }
-      if (parsedSettings.background) {
-        if (parsedSettings.background.image) {
-          background.image.value = parsedSettings.background.image;
-        }
-        if (parsedSettings.background.opacity) {
-          background.opacity.value = parsedSettings.background.opacity;
-        }
-      }
-      if (parsedSettings.theme) {
-        let themeColors;
-        let currentTheme;
-
-        // 检查主题是否存在于可用主题列表中
-        if (
-          config.theme &&
-          config.theme.available &&
-          config.theme.available.includes(parsedSettings.theme)
-        ) {
-          // 更新主题配置
-          currentTheme = parsedSettings.theme;
-          // 使用最新的配置对象获取主题颜色
-          themeColors = config.theme[currentTheme] || {
-            prompt: uiStyles.value.commandLine.prompt || "#3b82f6",
-            directory: uiStyles.value.commandLine.directory || "#60a5fa",
-            file: uiStyles.value.commandLine.file || "#fbbf24",
-            command: uiStyles.value.commandLine.command || "#ffffff",
-          };
-        } else {
-          // 如果主题不存在，使用默认主题
-          currentTheme = "default";
-          themeColors = config.theme.default || {
-            prompt: uiStyles.value.commandLine.prompt || "#3b82f6",
-            directory: uiStyles.value.commandLine.directory || "#60a5fa",
-            file: uiStyles.value.commandLine.file || "#fbbf24",
-            command: uiStyles.value.commandLine.command || "#ffffff",
-          };
-        }
-
-        // 更新主题配置
-        uiStyles.value.theme.current = currentTheme;
-        uiStyles.value.theme.colors = themeColors;
-
-        // 直接更新命令行样式，确保使用正确的颜色
-        uiStyles.value.commandLine = {
-          ...uiStyles.value.commandLine,
-          prompt: themeColors.prompt,
-          directory: themeColors.directory,
-          file: themeColors.file,
-          command: themeColors.command,
-        };
-      }
-    } catch (error) {
-      console.error("Failed to load settings from localStorage:", error);
-    }
-  }
-};
-
 // 保存历史命令到localStorage
 const saveHistory = () => {
   // 限制历史命令数量为20条
@@ -729,7 +865,6 @@ const clearHistory = () => {
 const updateMemoryInfo = () => {
   // 只使用performance.memory API获取当前网页的堆内存占用
   if (performance && performance.memory) {
-    console.log(performance.memory);
     const memInfo = performance.memory;
     const used = Math.round(memInfo.usedJSHeapSize / 1024 / 1024); // MB
     const total = Math.round(memInfo.totalJSHeapSize / 1024 / 1024); // MB
@@ -738,6 +873,32 @@ const updateMemoryInfo = () => {
     memoryInfo.usage.value = used.toString();
     memoryInfo.total.value = total.toString();
     memoryInfo.percent.value = percent.toString();
+  }
+};
+
+// 简单的CPU使用率估算（使用requestAnimationFrame时间差）
+let lastTimestamp = 0;
+let cpuUsage = 0;
+let frameCount = 0;
+
+const updateCpuInfo = () => {
+  const now = performance.now();
+  if (lastTimestamp > 0) {
+    const frameTime = now - lastTimestamp;
+    // 假设60fps的理想帧时间是16.67ms
+    const idealFrameTime = 16.67;
+    // 计算CPU使用率（实际使用时间/理想时间，上限100%）
+    cpuUsage = Math.min(100, Math.round((frameTime / idealFrameTime) * 100));
+    cpuInfo.value = `${cpuUsage}%`;
+  }
+  lastTimestamp = now;
+  frameCount++;
+
+  // 每10帧更新一次CPU显示，避免过于频繁更新
+  if (frameCount % 10 === 0) {
+    requestAnimationFrame(updateCpuInfo);
+  } else {
+    requestAnimationFrame(updateCpuInfo);
   }
 };
 
@@ -768,6 +929,71 @@ const updateTime = () => {
 
   updateMemoryInfo();
 };
+
+// 配置状态管理
+const config = ref({
+  app: { user: "Alan" },
+  ui: {
+    fontSize: "18",
+    fontFamily: "Consolas, Monaco, 'Courier New', monospace",
+    infoBar: {
+      backgroundColor: "transparent",
+      textColor: "#e2e8f0",
+      borderColor: "transparent",
+      height: "24px",
+      padding: "0 10px",
+      leftTemplate: "{user} on {dayOfWeek} at {time}",
+      rightTemplate: "{latency}  MEM: {mem}% ({memUsage}/{memTotal}GB)",
+      colors: {
+        username: "#ffbebc",
+        dayOfWeek: "#bc93ff",
+        commandTime: "#bc93ff",
+        latency: "#a9ffb4",
+        cpu: "#ce9178",
+        mem: "#a9ffb4",
+      },
+    },
+    commandLine: {
+      promptSymbol: "$",
+      promptSymbolColor: "#ec4899",
+      boldPrompt: false,
+      italicPrompt: false,
+      underlinePrompt: false,
+      colors: {
+        prompt: "#3b82f6",
+        directory: "#60a5fa",
+        file: "#fbbf24",
+        command: "#ffffff",
+        error: "#ff0000",
+        success: "#00ff00",
+        warning: "#ffff00",
+        info: "#00ffff",
+      },
+      output: {
+        dirItem: "#60a5fa",
+        fileItem: "#fbbf24",
+        error: "#ff0000",
+        help: "#a9ffb4",
+        listItem: "#ffffff",
+        treeLine: "#6b7280",
+      },
+    },
+  },
+  background: { image: "/background.jpg", opacity: "0.9" },
+  theme: {
+    current: "default",
+    available: ["default", "dark", "light", "solarized", "dracula"],
+    default: {
+      background: "#000000",
+      text: "#ffffff",
+      prompt: "#3b82f6",
+      command: "#ffffff",
+      directory: "#60a5fa",
+      file: "#fbbf24",
+      error: "#ff0000",
+    },
+  },
+});
 
 // 从JSON文件加载文章数据
 const articles = {
@@ -901,6 +1127,7 @@ const executeCommand = async () => {
         conversations,
         showWelcome,
         clearHistory, // 添加清除历史命令的函数
+        updateTomlConfig, // 添加TOML配置更新函数
       };
 
       // 获取命令处理函数
@@ -917,9 +1144,6 @@ const executeCommand = async () => {
         await scrollToBottom();
       }
     }
-
-    // 保存样式设置到localStorage，无论命令是否存在
-    saveSettings();
   } finally {
     // 命令执行完毕后清空命令输入框
     command.value = "";
@@ -1233,6 +1457,9 @@ onMounted(async () => {
   updateTime();
   const timeInterval = setInterval(updateTime, 60000);
 
+  // 启动CPU使用率更新循环
+  requestAnimationFrame(updateCpuInfo);
+
   // 检测设备类型
   isMobile.value = detectMobile();
 
@@ -1241,6 +1468,12 @@ onMounted(async () => {
     isMobile.value = detectMobile();
   };
   window.addEventListener("resize", handleResize);
+
+  // 注册onUnmounted钩子在await之前
+  onUnmounted(() => {
+    clearInterval(timeInterval);
+    window.removeEventListener("resize", handleResize);
+  });
 
   // 加载历史命令
   loadHistory();
@@ -1325,11 +1558,6 @@ onMounted(async () => {
     // 自动执行命令
     await autoExecuteCommands("cat Readme.md|tree");
   }
-
-  onUnmounted(() => {
-    clearInterval(timeInterval);
-    window.removeEventListener("resize", handleResize);
-  });
 });
 </script>
 
