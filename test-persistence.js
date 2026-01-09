@@ -74,19 +74,43 @@ class TerminalPage {
 
 // 解析指令列表的辅助函数
 function getCommandList() {
-    const indexPath = path.join(__dirname, 'src/commands/index.js');
-    const content = fs.readFileSync(indexPath, 'utf-8');
-    const match = content.match(/export const commands = \{([\s\S]+?)\};/);
-    if (!match) return [];
+    // 直接扫描 src/commands 目录下的 .js 文件（排除 index.js）
+    // 假设文件名即为指令名（如 ls.js -> ls, fileCmds.js -> [ls, cd, ...]）
+    // 但我们的新结构是 fileCmds.js 导出多个命令
+    // 因此我们需要一种更健壮的方式：硬编码已知命令列表，或者尝试解析文件内容
+    // 鉴于目前是测试脚本，我们可以简单地硬编码所有已知命令，或者解析 index.js 的自动导入逻辑（太复杂）
+    // 最好的方式是：读取 src/commands 下的所有文件，正则匹配 'export const xxx ='
     
-    return match[1].split(',')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('//'))
-        .map(line => {
-            const parts = line.split(':');
-            let name = parts[0].trim().replace(/['"]/g, '');
-            return name;
-        });
+    const commandsDir = path.join(__dirname, 'src/commands');
+    const files = fs.readdirSync(commandsDir);
+    let commands = [];
+
+    files.forEach(file => {
+        if (file === 'index.js' || !file.endsWith('.js')) return;
+        
+        const content = fs.readFileSync(path.join(commandsDir, file), 'utf-8');
+        // 匹配 export const commandName = ...
+        const matches = content.matchAll(/export\s+const\s+(\w+)\s*=/g);
+        for (const match of matches) {
+             // 排除 default 和 commands 导出
+             if (match[1] !== 'default' && match[1] !== 'commands') {
+                 commands.push(match[1]);
+             }
+        }
+        
+        // 匹配 export default function ... 或 export default ...
+        // 注意：vi.js 和 read.js 是 export default vi;
+        const defaultMatch = content.match(/export\s+default\s+(\w+)/);
+        if (defaultMatch && defaultMatch[1] !== 'commands') {
+            commands.push(defaultMatch[1]);
+        }
+    });
+
+    // 映射特殊的别名 (如 viewFile -> cat)
+    commands = commands.map(cmd => cmd === 'viewFile' ? 'cat' : cmd);
+    
+    // 去重
+    return [...new Set(commands)];
 }
 
 // 指令测试配置

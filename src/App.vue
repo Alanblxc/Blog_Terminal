@@ -233,11 +233,12 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref, computed } from "vue";
+import { onMounted, ref, computed } from "vue";
 import Welcome from "./components/Welcome.vue";
 import { useConfig } from "./composables/useConfig";
 import { useTerminal } from "./composables/useTerminal";
 import { parseInfoBarTemplate } from "./composables/utils";
+import { useSystemStats } from "./composables/useSystemStats";
 
 // 1. 初始化配置
 const configContext = useConfig();
@@ -274,75 +275,21 @@ const {
 } = useTerminal(configContext);
 
 // 3. 系统状态监控 (时间和性能)
-const currentTime = ref("");
-const currentDayOfWeek = ref("");
-const memoryInfo = ref({ usage: 0, total: 0, percent: 0 });
-const cpuInfo = ref("0%");
-const latency = ref("0.000s");
-const sysInfoTimer = ref(null); // 保存定时器ID
+const { 
+  currentTime, 
+  currentDayOfWeek, 
+  sysStats, 
+  startMonitoring 
+} = useSystemStats();
 
 const user = computed(() => config.value.app.user);
-// 聚合性能数据传给 parseInfoBarTemplate
-const sysStats = computed(() => ({
-  latency: latency.value,
-  cpu: cpuInfo.value,
-  mem: memoryInfo.value.percent,
-  memUsage: memoryInfo.value.usage,
-  memTotal: memoryInfo.value.total,
-}));
-
-// 辅助：更新时间与资源
-const updateSysInfo = () => {
-  const now = new Date();
-  currentTime.value = now.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-  currentDayOfWeek.value = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-  ][now.getDay()];
-
-  if (typeof performance !== 'undefined' && performance.memory) {
-    const m = performance.memory;
-    const used = Math.round(m.usedJSHeapSize / 1048576);
-    const total = Math.round(m.totalJSHeapSize / 1048576);
-    // Prevent division by zero
-    const percent = total > 0 ? Math.round((used / total) * 100) : 0;
-    memoryInfo.value = {
-      usage: used,
-      total,
-      percent,
-    };
-  }
-
-  // 简单的 CPU 模拟
-  let lastTime = performance.now();
-  requestAnimationFrame(() => {
-    const delta = performance.now() - lastTime;
-    cpuInfo.value = Math.min(100, Math.round((delta / 16.67) * 100)) + "%";
-  });
-};
-
-// 注册onUnmounted钩子，确保在setup()同步执行期间注册
-onUnmounted(() => {
-  if (sysInfoTimer.value) {
-    clearInterval(sysInfoTimer.value);
-  }
-});
 
 onMounted(async () => {
   await loadConfig();
   loadHistory();
 
-  updateSysInfo();
-  sysInfoTimer.value = setInterval(updateSysInfo, 2000); // 降低频率优化性能
+  // 启动系统监控
+  startMonitoring();
 
   // 初始命令
   const hist = localStorage.getItem("terminalHistory");

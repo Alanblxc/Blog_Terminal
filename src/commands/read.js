@@ -6,6 +6,8 @@ import katex from "katex";
 // 初始化 mermaid 配置，设置为手动加载模式
 mermaid.initialize({ startOnLoad: false });
 
+import { escapeHtml } from "../composables/utils";
+
 /**
  * 全屏阅读器类 (FullScreenReader)
  *
@@ -366,7 +368,7 @@ class FullScreenReader {
     this.fileSelectorLabel = document.createElement("span");
     this.fileSelectorLabel.textContent = title;
     this.fileSelectorLabel.style.cssText = `
-        display: inline-block; max-width: 200px; white-space: nowrap; 
+        display: inline-block; max-width: 300px; white-space: nowrap; 
         overflow: hidden; text-overflow: ellipsis; font-size: 14px;
     `;
 
@@ -681,6 +683,7 @@ class FullScreenReader {
         file.name && this.currentFileName && file.name === this.currentFileName;
       if (isMatch) item.classList.add("active");
       item.textContent = file.title || file.name;
+      item.title = file.title || file.name;
       item.onclick = (e) => {
         e.stopPropagation();
         this._switchFile(index);

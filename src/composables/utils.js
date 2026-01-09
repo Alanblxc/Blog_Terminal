@@ -102,26 +102,14 @@ export const parseInfoBarTemplate = (template, data, styles) => {
   // 替换所有可用变量
   let parsedTemplate = template;
   const variables = {
-    "{user}": `<span style="color: ${styles.username}">${getValue(
-      data.user
-    )}</span>`,
-    "{dayOfWeek}": `<span style="color: ${styles.dayOfWeek}">${getValue(
-      data.dayOfWeek
-    )}</span>`,
-    "{time}": `<span style="color: ${styles.commandTime}">${getValue(
-      data.time
-    )}</span>`,
-    "{latency}": `<span style="color: ${styles.latency}">${getValue(
-      data.latency
-    )}</span>`,
-    "{cpu}": `<span style="color: ${styles.cpu}">${getValue(data.cpu)}</span>`,
-    "{mem}": `<span style="color: ${styles.mem}">${getValue(data.mem)}</span>`,
-    "{memUsage}": `<span style="color: ${styles.mem}">${getValue(
-      data.memUsage
-    )}</span>`,
-    "{memTotal}": `<span style="color: ${styles.mem}">${getValue(
-      data.memTotal
-    )}</span>`,
+    "{user}": `<span style="color: ${styles.username}">${escapeHtml(String(getValue(data.user)))}</span>`,
+    "{dayOfWeek}": `<span style="color: ${styles.dayOfWeek}">${escapeHtml(String(getValue(data.dayOfWeek)))}</span>`,
+    "{time}": `<span style="color: ${styles.commandTime}">${escapeHtml(String(getValue(data.time)))}</span>`,
+    "{latency}": `<span style="color: ${styles.latency}">${escapeHtml(String(getValue(data.latency)))}</span>`,
+    "{cpu}": `<span style="color: ${styles.cpu}">${escapeHtml(String(getValue(data.cpu)))}</span>`,
+    "{mem}": `<span style="color: ${styles.mem}">${escapeHtml(String(getValue(data.mem)))}</span>`,
+    "{memUsage}": `<span style="color: ${styles.mem}">${escapeHtml(String(getValue(data.memUsage)))}</span>`,
+    "{memTotal}": `<span style="color: ${styles.mem}">${escapeHtml(String(getValue(data.memTotal)))}</span>`,
   };
 
   // 替换模板中的所有变量

@@ -1,5 +1,6 @@
 
 import postsData from "../../posts.json";
+import { THEME_LIST, FONT_LIST, BACKGROUND_OPACITY_LIST } from "./constants";
 
 // ... (保持 articles 初始化和 buildArticles 逻辑不变) ...
 export const articles = {
@@ -82,16 +83,11 @@ export const getCompletionItems = (cmd, currentDir, arg) => {
 
   // 1. 处理特殊命令的参数补全
   if (cmd === "theme") {
-    candidates = ["default", "dark", "light", "solarized", "dracula"];
+    candidates = [...THEME_LIST];
   } else if (cmd === "font") {
-    candidates = [
-      "0xProto Nerd Font",
-      "Fira Code",
-      "Cascadia Code",
-      "JetBrains Mono",
-      "default",
-    ];
+    candidates = [...FONT_LIST];
   } else if (cmd === "background") {
+    // 简单起见，background 命令只补全一级子命令，不处理 opacity 的具体数值
     candidates = ["opacity", "image"];
   } else {
     // 2. 处理文件/目录补全

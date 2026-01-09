@@ -76,8 +76,8 @@ class FullScreenEditor {
     const title = document.createElement("div");
     title.style.cssText = "color: #64748b; font-size: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; flex-shrink: 0;";
     title.innerHTML = `
-      <span>VI 编辑器: <strong style="color: #e2e8f0">${this.options.fileName || "Untitled"}</strong> ${this.options.readOnly ? "(只读)" : ""}</span>
-      <span>${this.options.language || "text"}</span>
+      <span>VI 编辑器: <strong style="color: #e2e8f0">${escapeHtml(this.options.fileName || "Untitled")}</strong> ${this.options.readOnly ? "(只读)" : ""}</span>
+      <span>${escapeHtml(this.options.language || "text")}</span>
     `;
     this.overlay.appendChild(title);
 
