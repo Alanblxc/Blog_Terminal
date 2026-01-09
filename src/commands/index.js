@@ -5,6 +5,7 @@ import {
   articles,
   getCompletionItems,
   getArticleInfo,
+  getDirIcon,
 } from "../composables/fileSystem"; // 导入文件系统函数
 import vi from "./vi"; // 导入复杂命令
 
@@ -190,13 +191,17 @@ const tree = async (context) => {
       const newPrefix = isLast ? "└── " : "├── ";
 
       const item = items[i];
-      treeLines.push(`${indent}${newPrefix}${item.icon} ${item.name}`);
+      // 使用getDirIcon函数生成图标，而不是直接访问item.icon
+      treeLines.push(`${indent}${newPrefix}${getDirIcon(item)} ${item.name}`);
 
       // 递归处理子目录
       if (item.type === "dir") {
-        const subDirPath =
-          dirPath === "/" ? `/${item.name}` : `${dirPath}/${item.name}`;
-        treeLines.push(...generateTree(subDirPath, newIndent));
+        // 使用resolvePath处理路径，确保路径格式正确
+        const subDirPath = resolvePath(dirPath, item.name);
+        // 检查目标目录是否存在于articles中
+        if (articles[subDirPath]) {
+          treeLines.push(...generateTree(subDirPath, newIndent));
+        }
       }
     }
 
@@ -204,7 +209,7 @@ const tree = async (context) => {
   };
 
   // 添加根目录
-  const treeLines = [`${getDirIcon()} .`];
+  const treeLines = [`${getDirIcon({ type: "dir" })} .`];
   treeLines.push(...generateTree("/"));
 
   await addOutput(conversation, {
@@ -944,6 +949,47 @@ const wget = async (context, ...args) => {
   }
 
   const fileName = args[0];
+
+  // 特殊处理config.toml文件
+  if (fileName === "config.toml") {
+    try {
+      // 从localStorage获取config.toml内容
+      const content = localStorage.getItem("terminalConfigToml") || "";
+
+      // 创建Blob对象
+      const blob = new Blob([content], { type: "text/toml" });
+
+      // 创建下载链接
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "config.toml";
+
+      // 触发下载
+      document.body.appendChild(a);
+      a.click();
+
+      // 清理
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      await addOutput(conversation, {
+        type: "success",
+        content: `Starting download: ${fileName}`,
+      });
+      await addOutput(conversation, {
+        type: "info",
+        content: `Downloading config.toml from localStorage`,
+      });
+      return;
+    } catch (error) {
+      await addOutput(conversation, {
+        type: "error",
+        content: `Error downloading config.toml: ${error.message}`,
+      });
+      return;
+    }
+  }
 
   // 使用getArticleInfo函数查找文件（支持整个文件系统查找）
   const file = getArticleInfo(fileName, "/");

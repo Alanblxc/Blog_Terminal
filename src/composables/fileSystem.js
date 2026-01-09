@@ -109,7 +109,7 @@ export const getCompletionItems = (cmd, currentDir, arg) => {
       // 特殊补全规则
       if (
         currentDir === "/" &&
-        (cmd === "vi" || cmd === "ls" || cmd === "cat")
+        (cmd === "vi" || cmd === "ls" || cmd === "cat" || cmd === "wget")
       ) {
         candidates.push("config.toml");
       }

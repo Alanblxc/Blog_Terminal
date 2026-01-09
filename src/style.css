@@ -310,11 +310,33 @@ input::placeholder {
   display: flex !important;
 }
 
+/* 确保信息栏使用Nerd Font */
+.info-bar-left,
+.info-bar-right {
+  font-family: var(--font-stack);
+}
+
 /* 移除CSS伪元素图标，恢复直接使用字符的方式 */
 
 .prompt-line {
   display: flex;
   align-items: center;
+}
+
+/* 确保所有输出内容都使用Nerd Font */
+.output {
+  font-family: var(--font-stack);
+  white-space: pre-wrap;
+}
+
+/* 确保普通文本输出也使用Nerd Font */
+.output > div {
+  font-family: var(--font-stack);
+}
+
+/* 确保Tree命令输出使用Nerd Font */
+.output div {
+  font-family: var(--font-stack);
 }
 
 /* 延迟和内存信息样式 */

@@ -29,5 +29,23 @@ defineProps({
 </script>
 
 <style scoped>
-/* 样式已全局定义，这里可选局部覆盖 */
+.welcome {
+  font-family: var(--font-stack);
+}
+
+.ascii-art {
+  font-family: var(--font-stack);
+}
+
+.system-info {
+  font-family: var(--font-stack);
+}
+
+.info-header {
+  font-family: var(--font-stack);
+}
+
+.info-item {
+  font-family: var(--font-stack);
+}
 </style>

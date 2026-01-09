@@ -219,17 +219,38 @@ export function useTerminal(configContext) {
     const cmdName = parts[0];
     const arg = parts.length > 1 ? parts[1] : "";
 
-    // 1. 命令名补全 (当只有一个部分且不是空字符串时)
-    if (parts.length === 1 && cmdName) {
-      const allCmds = Object.keys(commands).sort();
-      const matches = allCmds.filter((c) => c.startsWith(cmdName));
-      if (matches.length === 1) {
-        command.value = matches[0] + " ";
-      } else if (matches.length > 1) {
-        // 简单的循环补全逻辑
-        const idx = matches.indexOf(cmdName);
-        const next = matches[(idx + 1) % matches.length];
-        if (next) command.value = next;
+    // 1. 命令名补全 (输入为空，或只有一个部分)
+    if (parts.length === 1) {
+      // 定义默认补全命令列表
+      const defaultCmds = ["ls", "cd", "cat"];
+
+      // Case A: 没有任何输入，开始默认循环
+      if (!cmdName) {
+        command.value = defaultCmds[0]; // 这里不加空格，允许继续按Tab切换
+        return;
+      }
+
+      // Case B: 输入了部分命令或正好是默认命令
+      const isDefaultCmd = defaultCmds.includes(cmdName);
+      if (isDefaultCmd) {
+        // 如果是默认命令，循环切换到下一个默认命令
+        const currentIndex = defaultCmds.indexOf(cmdName);
+        const nextIndex = (currentIndex + 1) % defaultCmds.length;
+        // 注意：这里也不加空格，这样可以持续循环 ls -> cd -> cat
+        // 用户想用的时候，自己打空格进入参数补全
+        command.value = defaultCmds[nextIndex];
+      } else {
+        // 否则补全所有匹配的命令
+        const allCmds = Object.keys(commands).sort();
+        const matches = allCmds.filter((c) => c.startsWith(cmdName));
+        if (matches.length === 1) {
+          command.value = matches[0] + " "; // 普通命令补全自动加空格
+        } else if (matches.length > 1) {
+          // 简单的循环补全逻辑
+          const idx = matches.indexOf(cmdName);
+          const next = matches[(idx + 1) % matches.length];
+          if (next) command.value = next;
+        }
       }
       return;
     }
@@ -243,7 +264,14 @@ export function useTerminal(configContext) {
     const prefix = tabCompleteState.value.showAll
       ? tabCompleteState.value.originalArg
       : arg;
-    const matches = allCandidates.filter((item) => item.startsWith(prefix));
+
+    let matches = allCandidates.filter((item) => item.startsWith(prefix));
+
+    // --- 修改点：针对 ls 和 cd 命令，只显示文件夹 ---
+    if (cmdName === "ls" || cmdName === "cd") {
+      matches = matches.filter((item) => isDir(item, currentDir.value));
+    }
+    // -------------------------------------------
 
     if (matches.length === 0) return;
 

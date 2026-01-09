@@ -8,8 +8,8 @@ user = "Alan"
 # 欢迎语配置
 [welcome]
 title = "Welcome to My Terminal Blog"
-welcomeMsg = "📝 Type 'ls' to see categories, 'cat file.md' to read articles, 'tree' to see directory structure"
-helpMsg = "💡 Type 'help' for available commands"
+welcomeMsg = " Type 'ls' to see categories, 'cat file.md' to read articles, 'tree' to see directory structure"
+helpMsg = "󰋗 Type 'help' for available commands"
 
 # ASCII字符画配置
 [ascii]
