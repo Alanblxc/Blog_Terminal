@@ -13,22 +13,49 @@ const addOutput = async (conversation, output, scroll = true) => {
 
 // 命令函数定义
 
+// 封装路径处理工具函数
+const resolvePath = (currentPath, targetPath) => {
+  // 如果没有指定目标路径，返回当前路径
+  if (!targetPath) {
+    return currentPath;
+  }
+
+  let resolvedPath;
+
+  // 处理绝对路径（以/开头）
+  if (targetPath.startsWith("/")) {
+    resolvedPath = targetPath;
+  }
+  // 处理相对路径
+  else {
+    // 将当前目录和目标目录合并
+    const currentPathParts = currentPath.split("/").filter(Boolean);
+    const targetPathParts = targetPath.split("/").filter(Boolean);
+
+    // 处理特殊路径组件
+    for (const part of targetPathParts) {
+      if (part === "..") {
+        // 返回上一级目录
+        currentPathParts.pop();
+      } else if (part !== ".") {
+        // 添加子目录，不处理当前目录
+        currentPathParts.push(part);
+      }
+      // 忽略 .
+    }
+
+    // 构建完整路径
+    resolvedPath = "/" + currentPathParts.join("/");
+  }
+
+  return resolvedPath;
+};
+
 // ls 命令 - 支持 ls 文件夹 查看指定文件夹内容
 const ls = async (context, targetDir) => {
   const { articles, currentDir, conversation } = context;
-  let targetPath = currentDir;
-
-  // 如果指定了目录，计算目标路径
-  if (targetDir) {
-    if (targetDir.startsWith("/")) {
-      // 绝对路径
-      targetPath = targetDir;
-    } else {
-      // 相对路径
-      targetPath =
-        currentDir === "/" ? `/${targetDir}` : `${currentDir}/${targetDir}`;
-    }
-  }
+  // 使用resolvePath函数处理路径
+  let targetPath = resolvePath(currentDir, targetDir);
 
   const targetContent = articles[targetPath];
   if (targetContent && targetContent.type === "dir") {
@@ -90,33 +117,8 @@ const cd = async (context, dir) => {
     return;
   }
 
-  let targetPath;
-
-  // 处理绝对路径（以/开头）
-  if (dir.startsWith("/")) {
-    targetPath = dir;
-  }
-  // 处理相对路径
-  else {
-    // 将当前目录和目标目录合并
-    const currentPathParts = currentDirRef.value.split("/").filter(Boolean);
-    const dirParts = dir.split("/").filter(Boolean);
-
-    // 处理特殊路径组件
-    for (const part of dirParts) {
-      if (part === "..") {
-        // 返回上一级目录
-        currentPathParts.pop();
-      } else if (part !== ".") {
-        // 添加子目录，不处理当前目录
-        currentPathParts.push(part);
-      }
-      // 忽略 .
-    }
-
-    // 构建完整路径
-    targetPath = "/" + currentPathParts.join("/");
-  }
+  // 使用resolvePath函数处理路径
+  const targetPath = resolvePath(currentDirRef.value, dir);
 
   // 检查目标路径是否存在
   if (articles[targetPath]) {
@@ -943,7 +945,7 @@ const getFileUrlFromPath = (filePath, context) => {
 };
 
 const wget = async (context, ...args) => {
-  const { articles, currentDir, conversation } = context;
+  const { conversation, getArticleInfo } = context;
   if (args.length === 0) {
     await addOutput(conversation, {
       type: "error",
@@ -954,49 +956,21 @@ const wget = async (context, ...args) => {
 
   const fileName = args[0];
 
-  // 查找当前目录下的文件
-  const currentContent = articles[currentDir];
-  if (currentContent && currentContent.type === "dir") {
-    const file = currentContent.content.find(
-      (item) => item.type === "file" && item.name === fileName
-    );
+  // 使用getArticleInfo函数查找文件（支持整个文件系统查找）
+  const file = getArticleInfo(fileName);
 
-    if (file) {
-      let fileUrl;
+  let fileUrl = null;
 
-      // 如果文件有URL属性，直接使用
-      if (file.url) {
-        fileUrl = file.url;
-      }
-      // 如果是md文件且没有URL，构建本地文件路径
-      else if (fileName.endsWith(".md")) {
-        // 构建文件路径，假设文章文件都在post目录下
-        // 例如：当前目录是 /tech，文件是 vue3-intro.md，那么路径是 /post/tech/vue3-intro.md
-        const postPath =
-          currentDir === "/"
-            ? `/post/${fileName}`
-            : `${currentDir.replace("/", "/post/")}/${fileName}`;
-        fileUrl = postPath;
-      }
-
-      if (fileUrl) {
-        // 在新标签页中打开下载链接，不覆盖当前页面
-        window.open(fileUrl, "_blank");
-        await addOutput(conversation, {
-          type: "success",
-          content: `Starting download: ${fileName}`,
-        });
-        await addOutput(conversation, {
-          type: "info",
-          content: `Downloading from: ${fileUrl}`,
-        });
-        return;
-      }
+  if (file) {
+    // 如果文件有URL属性，直接使用
+    if (file.url) {
+      fileUrl = file.url;
+    }
+    // 如果是md文件且没有URL，使用文件的path属性或构建默认路径
+    else if (fileName.endsWith(".md")) {
+      fileUrl = file.path || `/post/${fileName}`;
     }
   }
-
-  // 如果当前目录没有找到，尝试从根目录查找
-  const fileUrl = getFileUrlFromPath(fileName, context);
 
   if (fileUrl) {
     // 在新标签页中打开下载链接，不覆盖当前页面
@@ -1517,31 +1491,44 @@ const vi = async (context, fileName) => {
   // 聚焦到文本框
   textarea.focus();
 
+  // 资源清理函数
+  const cleanupEditor = () => {
+    try {
+      // 移除DOM元素
+      if (editorOverlay.parentNode) {
+        document.body.removeChild(editorOverlay);
+      }
+    } catch (error) {
+      console.error("Error cleaning up editor:", error);
+    }
+  };
+
   // 返回一个Promise，确保vi命令不会立即结束
   return new Promise(async (resolve) => {
-    // 切换到命令模式
-    const switchToCommandMode = () => {
-      textarea.blur();
-      textarea.style.borderColor = "#3c3c3c";
-      commandContainer.style.display = "flex";
-      commandInput.focus();
-      modeIndicator.textContent = "COMMAND";
-      modeIndicator.style.color = "#f43f5e";
-    };
+    try {
+      // 切换到命令模式
+      const switchToCommandMode = () => {
+        textarea.blur();
+        textarea.style.borderColor = "#3c3c3c";
+        commandContainer.style.display = "flex";
+        commandInput.focus();
+        modeIndicator.textContent = "COMMAND";
+        modeIndicator.style.color = "#f43f5e";
+      };
 
-    // 切换到编辑模式
-    const switchToEditMode = () => {
-      commandInput.blur();
-      commandContainer.style.display = "none";
-      textarea.style.borderColor = "#3c3c3c";
-      textarea.focus();
-      modeIndicator.textContent = "INSERT";
-      modeIndicator.style.color = "#10b981";
-    };
+      // 切换到编辑模式
+      const switchToEditMode = () => {
+        commandInput.blur();
+        commandContainer.style.display = "none";
+        textarea.style.borderColor = "#3c3c3c";
+        textarea.focus();
+        modeIndicator.textContent = "INSERT";
+        modeIndicator.style.color = "#10b981";
+      };
 
-    // 创建错误信息显示区域
-    const errorContainer = document.createElement("div");
-    errorContainer.style.cssText = `
+      // 创建错误信息显示区域
+      const errorContainer = document.createElement("div");
+      errorContainer.style.cssText = `
       color: #ff0000;
       font-size: 12px;
       margin-top: 10px;
@@ -1550,137 +1537,140 @@ const vi = async (context, fileName) => {
       border-radius: 3px;
       display: none;
     `;
-    editorOverlay.appendChild(errorContainer);
+      editorOverlay.appendChild(errorContainer);
 
-    // 显示错误信息
-    const showError = (message) => {
-      errorContainer.textContent = message;
-      errorContainer.style.display = "block";
-      // 3秒后自动隐藏错误信息
-      setTimeout(() => {
-        errorContainer.style.display = "none";
-      }, 3000);
-    };
+      // 显示错误信息
+      const showError = (message) => {
+        errorContainer.textContent = message;
+        errorContainer.style.display = "block";
+        // 3秒后自动隐藏错误信息
+        setTimeout(() => {
+          errorContainer.style.display = "none";
+        }, 3000);
+      };
 
-    // 显示成功信息
-    const showSuccess = (message) => {
-      errorContainer.textContent = message;
-      errorContainer.style.color = "#00ff00";
-      errorContainer.style.background = "rgba(0, 255, 0, 0.1)";
-      errorContainer.style.display = "block";
-      // 3秒后自动隐藏成功信息
-      setTimeout(() => {
-        errorContainer.style.display = "none";
-      }, 3000);
-    };
+      // 显示成功信息
+      const showSuccess = (message) => {
+        errorContainer.textContent = message;
+        errorContainer.style.color = "#00ff00";
+        errorContainer.style.background = "rgba(0, 255, 0, 0.1)";
+        errorContainer.style.display = "block";
+        // 3秒后自动隐藏成功信息
+        setTimeout(() => {
+          errorContainer.style.display = "none";
+        }, 3000);
+      };
 
-    // 处理命令
-    const handleCommand = async (command) => {
-      // 清理命令输入
-      const cmd = command.trim();
-      commandInput.value = ""; // 清空命令输入框
+      // 处理命令
+      const handleCommand = async (command) => {
+        // 清理命令输入
+        const cmd = command.trim();
+        commandInput.value = ""; // 清空命令输入框
 
-      switch (cmd) {
-        case "w":
-          if (canSave) {
-            // 保存文件 - 只允许config.toml保存
-            const newContent = textarea.value;
-            localStorage.setItem("terminalConfigToml", newContent);
+        switch (cmd) {
+          case "w":
+            if (canSave) {
+              // 保存文件 - 只允许config.toml保存
+              const newContent = textarea.value;
+              localStorage.setItem("terminalConfigToml", newContent);
 
-            // 显示成功信息
-            showSuccess(`${fileName} saved successfully.`);
-            switchToEditMode();
+              // 显示成功信息
+              showSuccess(`${fileName} saved successfully.`);
+              switchToEditMode();
 
-            // 重新加载配置
-            if (reloadConfig) {
-              await reloadConfig();
+              // 重新加载配置
+              if (reloadConfig) {
+                await reloadConfig();
+              }
+            } else {
+              // .md文件不允许保存
+              showError(`Cannot save ${fileName}: Read-only file`);
+              switchToEditMode();
             }
-          } else {
-            // .md文件不允许保存
-            showError(`Cannot save ${fileName}: Read-only file`);
-            switchToEditMode();
-          }
-          break;
+            break;
 
-        case "wq":
-          if (canSave) {
-            // 保存并退出 - 只允许config.toml保存
-            const newContent = textarea.value;
-            localStorage.setItem("terminalConfigToml", newContent);
+          case "wq":
+            if (canSave) {
+              // 保存并退出 - 只允许config.toml保存
+              const newContent = textarea.value;
+              localStorage.setItem("terminalConfigToml", newContent);
 
-            // 移除编辑器
-            document.body.removeChild(editorOverlay);
+              // 通知用户保存成功
+              await addOutput(conversation, {
+                type: "success",
+                content: `${fileName} saved successfully.`,
+              });
 
-            // 通知用户保存成功
+              // 重新加载配置
+              if (reloadConfig) {
+                await reloadConfig();
+                await addOutput(conversation, {
+                  type: "info",
+                  content: "Configuration reloaded successfully.",
+                });
+              }
+
+              // 清理资源并解决Promise，结束vi命令
+              cleanupEditor();
+              resolve();
+            } else {
+              // .md文件不允许保存
+              showError(`Cannot save ${fileName}: Read-only file`);
+              switchToEditMode();
+            }
+            break;
+
+          case "q":
+          case "q!":
+            // 退出不保存
             await addOutput(conversation, {
-              type: "success",
-              content: `${fileName} saved successfully.`,
+              type: "info",
+              content: `Exited without saving.`,
             });
 
-            // 重新加载配置
-            if (reloadConfig) {
-              await reloadConfig();
-              await addOutput(conversation, {
-                type: "info",
-                content: "Configuration reloaded successfully.",
-              });
-            }
-
-            // 解决Promise，结束vi命令
+            // 清理资源并解决Promise，结束vi命令
+            cleanupEditor();
             resolve();
-          } else {
-            // .md文件不允许保存
-            showError(`Cannot save ${fileName}: Read-only file`);
+            break;
+
+          case "":
+            // 空命令，返回编辑模式
             switchToEditMode();
-          }
-          break;
+            break;
 
-        case "q":
-        case "q!":
-          // 退出不保存
-          document.body.removeChild(editorOverlay);
+          default:
+            // 未知命令，显示错误并返回编辑模式
+            showError(`Unknown command: ${cmd}`);
+            switchToEditMode();
+            break;
+        }
+      };
 
-          await addOutput(conversation, {
-            type: "info",
-            content: `Exited without saving.`,
-          });
+      // 监听文本区域的键盘事件
+      textarea.addEventListener("keydown", (e) => {
+        if (e.key === ":") {
+          // 输入:进入命令模式
+          switchToCommandMode();
+          e.preventDefault(); // 阻止:字符被输入到文本框
+        }
+      });
 
-          // 解决Promise，结束vi命令
-          resolve();
-          break;
-
-        case "":
-          // 空命令，返回编辑模式
+      // 监听命令输入框的键盘事件
+      commandInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          // 回车键执行命令
+          handleCommand(commandInput.value);
+        } else if (e.key === "Escape") {
+          // ESC键返回编辑模式
           switchToEditMode();
-          break;
-
-        default:
-          // 未知命令，显示错误并返回编辑模式
-          showError(`Unknown command: ${cmd}`);
-          switchToEditMode();
-          break;
-      }
-    };
-
-    // 监听文本区域的键盘事件
-    textarea.addEventListener("keydown", (e) => {
-      if (e.key === ":") {
-        // 输入:进入命令模式
-        switchToCommandMode();
-        e.preventDefault(); // 阻止:字符被输入到文本框
-      }
-    });
-
-    // 监听命令输入框的键盘事件
-    commandInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        // 回车键执行命令
-        handleCommand(commandInput.value);
-      } else if (e.key === "Escape") {
-        // ESC键返回编辑模式
-        switchToEditMode();
-      }
-    });
+        }
+      });
+    } catch (error) {
+      console.error("Error in vi editor:", error);
+      // 清理资源并解决Promise，结束vi命令
+      cleanupEditor();
+      resolve();
+    }
   });
 };
 

@@ -1,4 +1,21 @@
 /* 使用系统默认的等宽字体栈 */
+:root {
+  /* 字体变量 */
+  --font-stack: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
+    "Segoe UI Emoji", "Cascadia Code", "Consolas", "Monaco", "Courier New",
+    Courier, monospace;
+
+  /* 颜色变量 */
+  --bg-color: rgba(0, 0, 0, 0.9);
+  --text-color: #ffffff;
+  --primary-color: #3b82f6;
+  --secondary-color: #60a5fa;
+  --accent-color: #ec4899;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+  --warning-color: #f59e0b;
+  --info-color: #06b6d4;
+}
 
 * {
   margin: 0;
@@ -11,9 +28,7 @@ html {
 }
 
 body {
-  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
-    "Segoe UI Emoji", "Cascadia Code", "Consolas", "Monaco", "Courier New",
-    Courier, monospace;
+  font-family: var(--font-stack);
   background: transparent;
   color: #ffffff;
   overflow: hidden;
@@ -40,9 +55,7 @@ body {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: #ffffff;
-  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
-    "Segoe UI Emoji", "Cascadia Code", "Consolas", "Monaco", "Courier New",
-    Courier, monospace;
+  font-family: var(--font-stack);
 }
 
 /* Terminal Content */
@@ -151,8 +164,7 @@ body {
   margin-right: 8px;
   font-weight: bold;
   font-size: inherit;
-  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
-    "Segoe UI Emoji", monospace;
+  font-family: var(--font-stack);
 }
 
 .prompt-symbol {
@@ -160,22 +172,19 @@ body {
   margin-right: 8px;
   font-weight: bold;
   font-size: inherit;
-  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
-    "Segoe UI Emoji", monospace;
+  font-family: var(--font-stack);
 }
 
 .command-content {
   color: #ffffff;
   font-size: inherit;
-  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
-    "Segoe UI Emoji", monospace;
+  font-family: var(--font-stack);
 }
 
 input.command-content {
   color: #ffffff;
   font-size: inherit;
-  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
-    "Segoe UI Emoji", monospace;
+  font-family: var(--font-stack);
 }
 
 .input-container {
@@ -189,9 +198,7 @@ input {
   border: none;
   outline: none;
   color: #ffffff;
-  font-family: "0xProto Nerd Font", "Roboto Mono Nerd Font", "Segoe UI Symbol",
-    "Segoe UI Emoji", "Cascadia Code", "Consolas", "Monaco", "Courier New",
-    Courier, monospace;
+  font-family: var(--font-stack);
   font-size: inherit;
   line-height: inherit;
 }
@@ -407,8 +414,7 @@ input::placeholder {
   padding: 2px 6px;
   border-radius: 4px;
   color: #4ade80;
-  font-family: "Cascadia Code", "Consolas", "Monaco", "Courier New", Courier,
-    monospace;
+  font-family: var(--font-stack);
 }
 
 .glow-body pre {
