@@ -65,6 +65,38 @@ latency = "#a9ffb4"
 cpu = "#ce9178"
 mem = "#a9ffb4"
 
+# 命令行样式配置
+[ui.commandLine]
+# 提示符样式
+promptSymbol = "$"
+promptSymbolColor = "#ec4899"
+
+# 文本格式选项
+boldPrompt = false
+italicPrompt = false
+underlinePrompt = false
+
+# 命令行元素配色
+[ui.commandLine.colors]
+prompt = "#3b82f6"
+directory = "#60a5fa"
+file = "#fbbf24"
+command = "#ffffff"
+error = "#ff0000"
+success = "#00ff00"
+warning = "#ffff00"
+info = "#00ffff"
+
+# 输出格式配色
+[ui.commandLine.output]
+dirItem = "#60a5fa"
+fileItem = "#fbbf24"
+error = "#ff0000"
+help = "#a9ffb4"
+listItem = "#ffffff"
+treeLine = "#6b7280"
+
+
 # 主题配置
 [theme]
 current = "default"

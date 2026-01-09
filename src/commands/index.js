@@ -629,7 +629,7 @@ const ping = async (context, target = "localhost") => {
 
 // theme 命令
 const theme = async (context, ...args) => {
-  const { conversation, theme } = context;
+  const { conversation, theme, uiStyles } = context;
   if (args.length === 0) {
     // 显示当前主题和可用主题
     await addOutput(conversation, {
@@ -641,7 +641,8 @@ const theme = async (context, ...args) => {
   } else if (args.length === 1) {
     const requestedTheme = args[0];
     if (theme.available.value.includes(requestedTheme)) {
-      theme.current.value = requestedTheme;
+      // 直接更新uiStyles中的主题，而不是尝试修改只读的computed属性
+      uiStyles.value.theme.current = requestedTheme;
       await addOutput(conversation, {
         type: "success",
         content: `Theme set to ${requestedTheme}`,
@@ -893,6 +894,7 @@ const clearConfig = async (context, ...args) => {
     font,
     background,
     theme,
+    uiStyles,
     conversations,
     clearHistory,
   } = context;
@@ -922,9 +924,16 @@ const clearConfig = async (context, ...args) => {
     }
   }
 
-  // 重置主题
-  if (theme && theme.current) {
-    theme.current.value = "default"; // 恢复默认主题
+  // 重置主题 - 使用uiStyles而不是只读的computed属性
+  if (uiStyles && uiStyles.value && uiStyles.value.theme) {
+    uiStyles.value.theme.current = "default"; // 恢复默认主题
+  } else if (theme && theme.current) {
+    // 兼容旧代码，尝试直接修改theme.current.value
+    try {
+      theme.current.value = "default";
+    } catch (e) {
+      // 如果修改失败，忽略错误
+    }
   }
 
   // 重置历史命令

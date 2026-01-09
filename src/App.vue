@@ -75,30 +75,33 @@
               <span class="user-info">
                 <span
                   class="username"
-                  :style="{ color: infoBarColors.username }"
+                  :style="{ color: uiStyles.infoBar.username }"
                   >{{ user }}</span
                 >
                 <span class="user-info-separator"> on </span>
                 <span
                   class="day-of-week"
-                  :style="{ color: infoBarColors.dayOfWeek }"
+                  :style="{ color: uiStyles.infoBar.dayOfWeek }"
                   >{{ getDayOfWeek() }}</span
                 >
                 <span class="user-info-separator"> at </span>
                 <span
                   class="command-time"
-                  :style="{ color: infoBarColors.commandTime }"
+                  :style="{ color: uiStyles.infoBar.commandTime }"
                   >{{ conversation.command.time }}</span
                 >
               </span>
               <span class="latency-mem-info">
                 <span
                   class="latency"
-                  :style="{ color: infoBarColors.latency }"
+                  :style="{ color: uiStyles.infoBar.latency }"
                   >{{ latency }}</span
                 >
                 <span class="mem-label">  MEM:</span>
-                <span class="mem-value" :style="{ color: infoBarColors.mem }">
+                <span
+                  class="mem-value"
+                  :style="{ color: uiStyles.infoBar.mem }"
+                >
                   {{ memoryInfo.percent }}% ({{ memoryInfo.usage }}/{{
                     memoryInfo.total
                   }}GB)</span
@@ -106,7 +109,9 @@
               </span>
             </div>
             <div class="prompt-line">
-              <span class="prompt" :style="{ color: theme.colors.prompt }"
+              <span
+                class="prompt"
+                :style="{ color: uiStyles.commandLine.prompt }"
                 >{{ getDirIcon() }}
                 {{
                   conversation.command.dir === "/"
@@ -114,7 +119,11 @@
                     : conversation.command.dir
                 }}</span
               >
-              <span class="prompt-symbol" :style="{ color: '#ec4899' }">$</span>
+              <span
+                class="prompt-symbol"
+                :style="{ color: uiStyles.commandLine.promptSymbol }"
+                >$</span
+              >
               <span class="command-content">{{
                 conversation.command.content
               }}</span>
@@ -135,13 +144,13 @@
                 <span
                   v-if="item.type === 'dir'"
                   class="dir-item"
-                  :style="{ color: theme.colors.directory }"
+                  :style="{ color: uiStyles.commandLine.directory }"
                   >{{ item.icon }} {{ item.name }}</span
                 >
                 <span
                   v-else-if="item.type === 'file'"
                   class="file-item"
-                  :style="{ color: theme.colors.file }"
+                  :style="{ color: uiStyles.commandLine.file }"
                   >{{ item.icon }} {{ item.name }}</span
                 >
               </div>
@@ -149,7 +158,7 @@
             <div
               v-else-if="outputItem.type === 'glow'"
               class="glow-content"
-              :class="`theme-${outputItem.theme}`"
+              :class="`theme-${theme.current.value}`"
             >
               <div class="glow-title">{{ outputItem.content.title }}</div>
               <div class="glow-meta">
@@ -167,28 +176,30 @@
             <span class="user-info">
               <span
                 class="username"
-                :style="{ color: infoBarColors.username }"
+                :style="{ color: uiStyles.infoBar.username }"
                 >{{ user }}</span
               >
               <span class="user-info-separator"> on </span>
               <span
                 class="day-of-week"
-                :style="{ color: infoBarColors.dayOfWeek }"
+                :style="{ color: uiStyles.infoBar.dayOfWeek }"
                 >{{ getDayOfWeek() }}</span
               >
               <span class="user-info-separator"> at </span>
               <span
                 class="command-time"
-                :style="{ color: infoBarColors.commandTime }"
+                :style="{ color: uiStyles.infoBar.commandTime }"
                 >{{ currentTime }}</span
               >
             </span>
             <span class="latency-mem-info">
-              <span class="latency" :style="{ color: infoBarColors.latency }">{{
-                latency
-              }}</span>
+              <span
+                class="latency"
+                :style="{ color: uiStyles.infoBar.latency }"
+                >{{ latency }}</span
+              >
               <span class="mem-label">  MEM:</span>
-              <span class="mem-value" :style="{ color: infoBarColors.mem }">
+              <span class="mem-value" :style="{ color: uiStyles.infoBar.mem }">
                 {{ memoryInfo.percent }}% ({{ memoryInfo.usage }}/{{
                   memoryInfo.total
                 }}GB)</span
@@ -196,11 +207,15 @@
             </span>
           </div>
           <div class="prompt-line">
-            <span class="prompt" :style="{ color: theme.colors.prompt }"
+            <span class="prompt" :style="{ color: uiStyles.commandLine.prompt }"
               >{{ getDirIcon() }}
               {{ currentDir === "/" ? "~" : currentDir }}</span
             >
-            <span class="prompt-symbol" :style="{ color: '#ec4899' }">$</span>
+            <span
+              class="prompt-symbol"
+              :style="{ color: uiStyles.commandLine.promptSymbol }"
+              >$</span
+            >
             <div class="input-container">
               <input
                 v-model="command"
@@ -222,7 +237,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from "vue";
 import { marked } from "marked";
 import postsData from "../posts.json";
 import { parse } from "@iarna/toml";
@@ -233,11 +248,59 @@ import commands from "./commands"; // 优雅的默认导入
 // 读取配置文件
 let config = {
   app: { user: "Alan" },
-  ui: { fontSize: "18" },
+  ui: {
+    fontSize: "18",
+    fontFamily: "Consolas, Monaco, 'Courier New', monospace",
+    infoBar: {
+      colors: {
+        username: "#ffbebc",
+        dayOfWeek: "#bc93ff",
+        commandTime: "#bc93ff",
+        latency: "#a9ffb4",
+        mem: "#a9ffb4",
+      },
+    },
+    commandLine: {
+      promptSymbol: "$",
+      promptSymbolColor: "#ec4899",
+      // 文本格式选项
+      boldPrompt: false,
+      italicPrompt: false,
+      underlinePrompt: false,
+      colors: {
+        prompt: "#3b82f6",
+        directory: "#60a5fa",
+        file: "#fbbf24",
+        command: "#ffffff",
+        error: "#ff0000",
+        success: "#00ff00",
+        warning: "#ffff00",
+        info: "#00ffff",
+      },
+      // 输出格式配色
+      output: {
+        dirItem: "#60a5fa",
+        fileItem: "#fbbf24",
+        error: "#ff0000",
+        help: "#a9ffb4",
+        listItem: "#ffffff",
+        treeLine: "#6b7280",
+      },
+    },
+  },
   background: { image: "/background.jpg", opacity: "0.9" },
   theme: {
     current: "default",
     available: ["default", "dark", "light", "solarized", "dracula"],
+    default: {
+      background: "#000000",
+      text: "#ffffff",
+      prompt: "#3b82f6",
+      command: "#ffffff",
+      directory: "#60a5fa",
+      file: "#fbbf24",
+      error: "#ff0000",
+    },
   },
 };
 
@@ -257,17 +320,55 @@ const loadConfig = async () => {
       theme.current.value = config.theme.current;
       theme.available.value = config.theme.available;
 
-      // 更新信息栏配色
-      infoBarColors.value = {
-        username: config.ui?.infoBar?.colors?.username || "#ffbebc",
-        dayOfWeek: config.ui?.infoBar?.colors?.dayOfWeek || "#bc93ff",
-        commandTime: config.ui?.infoBar?.colors?.commandTime || "#bc93ff",
-        latency: config.ui?.infoBar?.colors?.latency || "#a9ffb4",
-        mem: config.ui?.infoBar?.colors?.mem || "#a9ffb4",
+      // 更新主题配置
+      const newThemeConfig = {
+        current: config.theme.current,
+        available: config.theme.available,
+        colors: config.theme[config.theme.current] || {},
       };
 
-      // 更新主题配色
-      theme.colors.value = config.theme[config.theme.current] || {};
+      // 更新样式配置 - 从配置文件读取命令行样式
+      uiStyles.value = {
+        // 信息栏配色
+        infoBar: {
+          username: config.ui?.infoBar?.colors?.username || "#ffbebc",
+          dayOfWeek: config.ui?.infoBar?.colors?.dayOfWeek || "#bc93ff",
+          commandTime: config.ui?.infoBar?.colors?.commandTime || "#bc93ff",
+          latency: config.ui?.infoBar?.colors?.latency || "#a9ffb4",
+          mem: config.ui?.infoBar?.colors?.mem || "#a9ffb4",
+        },
+        // 命令行样式 - 从配置读取
+        commandLine: {
+          // 文本格式选项
+          boldPrompt: config.ui?.commandLine?.boldPrompt || false,
+          italicPrompt: config.ui?.commandLine?.italicPrompt || false,
+          underlinePrompt: config.ui?.commandLine?.underlinePrompt || false,
+          // 基本样式
+          prompt: config.ui?.commandLine?.colors?.prompt || "#3b82f6",
+          promptSymbol: config.ui?.commandLine?.promptSymbol || "$",
+          promptSymbolColor:
+            config.ui?.commandLine?.promptSymbolColor || "#ec4899",
+          directory: config.ui?.commandLine?.colors?.directory || "#60a5fa",
+          file: config.ui?.commandLine?.colors?.file || "#fbbf24",
+          command: config.ui?.commandLine?.colors?.command || "#ffffff",
+          // 状态颜色
+          error: config.ui?.commandLine?.colors?.error || "#ff0000",
+          success: config.ui?.commandLine?.colors?.success || "#00ff00",
+          warning: config.ui?.commandLine?.colors?.warning || "#ffff00",
+          info: config.ui?.commandLine?.colors?.info || "#00ffff",
+          // 输出格式配色
+          output: {
+            dirItem: config.ui?.commandLine?.output?.dirItem || "#60a5fa",
+            fileItem: config.ui?.commandLine?.output?.fileItem || "#fbbf24",
+            error: config.ui?.commandLine?.output?.error || "#ff0000",
+            help: config.ui?.commandLine?.output?.help || "#a9ffb4",
+            listItem: config.ui?.commandLine?.output?.listItem || "#ffffff",
+            treeLine: config.ui?.commandLine?.output?.treeLine || "#6b7280",
+          },
+        },
+        // 主题配置
+        theme: newThemeConfig,
+      };
 
       // 更新欢迎语配置
       if (config.welcome) {
@@ -289,6 +390,8 @@ const loadConfig = async () => {
 // 初始化应用配置
 const initApp = async () => {
   await loadConfig();
+
+  // 最后加载本地设置，覆盖默认配置
   loadSettings();
 };
 
@@ -397,21 +500,102 @@ const background = {
   opacity: ref(parseFloat(config.background.opacity)), // 背景透明度，初始化为数字类型
 };
 
-// 信息栏配色状态
-const infoBarColors = ref({
-  username: config.ui?.infoBar?.colors?.username || "#ffbebc",
-  dayOfWeek: config.ui?.infoBar?.colors?.dayOfWeek || "#bc93ff",
-  commandTime: config.ui?.infoBar?.colors?.commandTime || "#bc93ff",
-  latency: config.ui?.infoBar?.colors?.latency || "#a9ffb4",
-  mem: config.ui?.infoBar?.colors?.mem || "#a9ffb4",
+// 先初始化主题配置
+const themeConfig = ref({
+  current: config.theme.current,
+  available: config.theme.available,
+  colors: config.theme[config.theme.current] || {
+    prompt: "#3b82f6",
+    directory: "#60a5fa",
+    file: "#fbbf24",
+  },
 });
 
-// 主题相关状态
+// 样式配置统一管理
+const uiStyles = ref({
+  // 信息栏配色
+  infoBar: {
+    username: config.ui?.infoBar?.colors?.username || "#ffbebc",
+    dayOfWeek: config.ui?.infoBar?.colors?.dayOfWeek || "#bc93ff",
+    commandTime: config.ui?.infoBar?.colors?.commandTime || "#bc93ff",
+    latency: config.ui?.infoBar?.colors?.latency || "#a9ffb4",
+    mem: config.ui?.infoBar?.colors?.mem || "#a9ffb4",
+  },
+  // 命令行样式 - 从配置读取
+  commandLine: {
+    // 文本格式选项
+    boldPrompt: config.ui?.commandLine?.boldPrompt || false,
+    italicPrompt: config.ui?.commandLine?.italicPrompt || false,
+    underlinePrompt: config.ui?.commandLine?.underlinePrompt || false,
+    // 基本样式
+    prompt: config.ui?.commandLine?.colors?.prompt || "#3b82f6",
+    promptSymbol: config.ui?.commandLine?.promptSymbol || "$",
+    promptSymbolColor: config.ui?.commandLine?.promptSymbolColor || "#ec4899",
+    directory: config.ui?.commandLine?.colors?.directory || "#60a5fa",
+    file: config.ui?.commandLine?.colors?.file || "#fbbf24",
+    command: config.ui?.commandLine?.colors?.command || "#ffffff",
+    // 状态颜色
+    error: config.ui?.commandLine?.colors?.error || "#ff0000",
+    success: config.ui?.commandLine?.colors?.success || "#00ff00",
+    warning: config.ui?.commandLine?.colors?.warning || "#ffff00",
+    info: config.ui?.commandLine?.colors?.info || "#00ffff",
+    // 输出格式配色
+    output: {
+      dirItem: config.ui?.commandLine?.output?.dirItem || "#60a5fa",
+      fileItem: config.ui?.commandLine?.output?.fileItem || "#fbbf24",
+      error: config.ui?.commandLine?.output?.error || "#ff0000",
+      help: config.ui?.commandLine?.output?.help || "#a9ffb4",
+      listItem: config.ui?.commandLine?.output?.listItem || "#ffffff",
+      treeLine: config.ui?.commandLine?.output?.treeLine || "#6b7280",
+    },
+  },
+  // 主题配置
+  theme: themeConfig.value,
+});
+
+// 主题相关状态（保留原有接口，确保兼容性）
 const theme = {
-  current: ref(config.theme.current), // 当前主题，从配置文件读取
-  available: ref(config.theme.available), // 可用主题列表，从配置文件读取
-  colors: ref(config.theme[config.theme.current] || {}), // 当前主题配色
+  current: computed(() => uiStyles.value.theme.current),
+  available: computed(() => uiStyles.value.theme.available),
+  colors: computed(() => uiStyles.value.theme.colors),
 };
+
+// 信息栏配色状态（保留原有接口，确保兼容性）
+const infoBarColors = computed(() => uiStyles.value.infoBar);
+
+// 监听主题变化，更新命令行样式和所有已渲染的文档内容
+watch(
+  () => theme.current.value,
+  (newTheme) => {
+    // 主题变化时，从配置中获取对应主题的样式
+    const themeColors = config.theme[newTheme] || {
+      prompt: uiStyles.value.commandLine.prompt || "#3b82f6",
+      directory: uiStyles.value.commandLine.directory || "#60a5fa",
+      file: uiStyles.value.commandLine.file || "#fbbf24",
+      command: uiStyles.value.commandLine.command || "#ffffff",
+    };
+
+    // 更新命令行样式，优先使用配置文件中的命令行样式，主题样式作为备选
+    uiStyles.value.commandLine = {
+      ...uiStyles.value.commandLine,
+      // 只在配置文件中没有明确设置时才使用主题颜色
+      prompt: config.ui?.commandLine?.colors?.prompt || themeColors.prompt,
+      directory:
+        config.ui?.commandLine?.colors?.directory || themeColors.directory,
+      file: config.ui?.commandLine?.colors?.file || themeColors.file,
+      command: config.ui?.commandLine?.colors?.command || themeColors.command,
+    };
+
+    // 更新所有已渲染的文档内容的主题
+    conversations.value.forEach((conversation) => {
+      conversation.output.forEach((outputItem) => {
+        if (outputItem.type === "glow") {
+          outputItem.theme = newTheme;
+        }
+      });
+    });
+  }
+);
 
 // 命令执行相关
 const isCommandExecuting = ref(false); // 跟踪命令是否正在执行
@@ -440,6 +624,12 @@ const loadHistory = () => {
 
 // 保存样式设置到localStorage
 const saveSettings = () => {
+  // 确保只保存有效的主题名称
+  let validTheme = theme.current.value;
+  if (!config.theme.available.includes(validTheme)) {
+    validTheme = "default";
+  }
+
   const settings = {
     fontSize: fontSize.value,
     font: font.family.value,
@@ -447,7 +637,7 @@ const saveSettings = () => {
       image: background.image.value,
       opacity: background.opacity.value,
     },
-    theme: theme.current.value,
+    theme: validTheme,
   };
   localStorage.setItem("terminalSettings", JSON.stringify(settings));
 };
@@ -474,9 +664,47 @@ const loadSettings = () => {
         }
       }
       if (parsedSettings.theme) {
-        theme.current.value = parsedSettings.theme;
-        // 更新主题配色
-        theme.colors.value = config.theme[parsedSettings.theme] || {};
+        let themeColors;
+        let currentTheme;
+
+        // 检查主题是否存在于可用主题列表中
+        if (
+          config.theme &&
+          config.theme.available &&
+          config.theme.available.includes(parsedSettings.theme)
+        ) {
+          // 更新主题配置
+          currentTheme = parsedSettings.theme;
+          // 使用最新的配置对象获取主题颜色
+          themeColors = config.theme[currentTheme] || {
+            prompt: uiStyles.value.commandLine.prompt || "#3b82f6",
+            directory: uiStyles.value.commandLine.directory || "#60a5fa",
+            file: uiStyles.value.commandLine.file || "#fbbf24",
+            command: uiStyles.value.commandLine.command || "#ffffff",
+          };
+        } else {
+          // 如果主题不存在，使用默认主题
+          currentTheme = "default";
+          themeColors = config.theme.default || {
+            prompt: uiStyles.value.commandLine.prompt || "#3b82f6",
+            directory: uiStyles.value.commandLine.directory || "#60a5fa",
+            file: uiStyles.value.commandLine.file || "#fbbf24",
+            command: uiStyles.value.commandLine.command || "#ffffff",
+          };
+        }
+
+        // 更新主题配置
+        uiStyles.value.theme.current = currentTheme;
+        uiStyles.value.theme.colors = themeColors;
+
+        // 直接更新命令行样式，确保使用正确的颜色
+        uiStyles.value.commandLine = {
+          ...uiStyles.value.commandLine,
+          prompt: themeColors.prompt,
+          directory: themeColors.directory,
+          file: themeColors.file,
+          command: themeColors.command,
+        };
       }
     } catch (error) {
       console.error("Failed to load settings from localStorage:", error);
@@ -669,6 +897,7 @@ const executeCommand = async () => {
         background,
         theme,
         infoBarColors,
+        uiStyles,
         conversations,
         showWelcome,
         clearHistory, // 添加清除历史命令的函数
