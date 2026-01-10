@@ -3,7 +3,7 @@
     <pre v-if="asciiArt && showAsciiArt" class="ascii-art">{{ asciiArt }}</pre>
     <div class="system-info">
       <div class="info-header">{{ welcome.title }}</div>
-      <div class="info-item">󰍹&nbsp; OS {{ browserInfo.getOsType() }}</div>
+      <div class="info-item">󰍹&nbsp;OS {{ browserInfo.getOsType() }}</div>
       <div class="info-item">
         🌐&nbsp;Browser {{ browserInfo.getBrowserType() }}
       </div>
