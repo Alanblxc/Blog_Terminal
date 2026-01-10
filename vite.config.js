@@ -3,6 +3,10 @@ import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
   plugins: [vue()],
+  define: {
+    // 解决 @iarna/toml 等库依赖 global 变量的问题
+    global: 'window',
+  },
   server: {
     allowedHosts: true, // 允许所有主机访问，解决Blocked request问题
   },
